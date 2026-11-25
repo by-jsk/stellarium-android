@@ -31,6 +31,11 @@ pixels, keep the sky Activity visible, and preserve red illumination. Android
 Crash checks match this app's process ID; a Google APIs emulator service crash
 is retained in the log without being mislabeled as a Stellar Touch crash.
 
+<!-- [20261126 by jsk] 새 배색과 적색 모드 전환을 확인하는 조건을 기록함. -->
+The v0.1.1 native report also checks that constellation lines are enabled,
+the drawing manager and persisted settings both use the high-contrast palette,
+and the R button switches modes in both directions within the same activity.
+
 The emulator's observed FPS and startup time are diagnostic measurements. They
 are not performance measurements on a Galaxy S25 or all supported devices.
 Hardware telescope control, every plugin configuration, external services and
@@ -43,12 +48,12 @@ manifest disallows cleartext HTTP and its Java flag remains a compile-time
 `false`. The fixture permits a single emulator loopback server; the normal
 release permits the exact public HTTPS release URL.
 
-`tools/fixture-apk.py` changes only the Android manifest version code to zero.
+`tools/fixture-apk.py` sets the Android manifest version code to the preceding code.
 The workflow signs this previous-version fixture and candidate with the same
 ephemeral CI key. `tools/test-upgrade.py` installs the fixture, seeds Korean and
 Japan as independent preferences, opens the actual update screen, taps its
 install control, observes a DownloadManager transfer and confirms Android's
-system installer. It then verifies installed code 1 and retained preferences.
+system installer. It then verifies the candidate version code and retained preferences.
 The test waits for the installer's completed screen, closes it, and waits for
 the old process to stop before relaunching the upgraded app. A PackageManager
 version-code change alone does not prove the installer has finished.
@@ -64,3 +69,6 @@ retain the package's data.
 key, verifies its certificate and alignment, checks package identity and emits
 the SHA-256 digest. No workflow receives the distribution key. Source packaging
 excludes `.secrets`, keystores, caches and build outputs.
+
+Run `python3 tools/prepare-release.py --evidence release/smoke --workflow-run <run-id>`
+with the successful run's APK, corresponding source and both emulator reports.
