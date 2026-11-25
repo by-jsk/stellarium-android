@@ -1,0 +1,13 @@
+{
+  "passed": true,
+  "previous_versionCode": 0,
+  "installed_versionCode": 1,
+  "metadata_detected": true,
+  "apk_downloaded": true,
+  "system_install_confirmed": true,
+  "system_install_completed": true,
+  "language_preserved": "ko",
+  "region_preserved": "JP",
+  "same_signer_required": true,
+  "fixture": "x86_64 CI key and loopback HTTP; production ARM64 uses HTTPS and its separate stable release key"
+}

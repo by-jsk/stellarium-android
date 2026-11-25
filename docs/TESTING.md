@@ -22,6 +22,15 @@ in all six languages. It captures screenshots, logcat, memory and observed FPS.
 All native ELF libraries must support 16-KiB pages, and the second emulator's actual page size is checked. The pixel check requires visible red controls and rejects non-red illumination
 and a blank black screen. A timeout captures native thread stacks for diagnosis.
 
+Capture waits for presentation after the native language checks. Android's
+UIAutomator exposes Qt's OpenGL surface without its graphics-widget children,
+so the close control is found either through native accessibility or from the
+visible red X in the screenshot. A real ADB tap must change more than 10,000
+pixels, keep the sky Activity visible, and preserve red illumination. Android
+16 predictive Back is not used as a substitute for the panel's close button.
+Crash checks match this app's process ID; a Google APIs emulator service crash
+is retained in the log without being mislabeled as a Stellar Touch crash.
+
 The emulator's observed FPS and startup time are diagnostic measurements. They
 are not performance measurements on a Galaxy S25 or all supported devices.
 Hardware telescope control, every plugin configuration, external services and
@@ -40,6 +49,9 @@ ephemeral CI key. `tools/test-upgrade.py` installs the fixture, seeds Korean and
 Japan as independent preferences, opens the actual update screen, taps its
 install control, observes a DownloadManager transfer and confirms Android's
 system installer. It then verifies installed code 1 and retained preferences.
+The test waits for the installer's completed screen, closes it, and waits for
+the old process to stop before relaunching the upgraded app. A PackageManager
+version-code change alone does not prove the installer has finished.
 The report distinguishes this test key from the stable local distribution key.
 
 The `adb uninstall` operation in that script is for the disposable CI emulator
