@@ -100,7 +100,7 @@ jobs:
         with:
           name: apk-${{ matrix.abi }}
           path: release/StellarTouch-${{ matrix.abi }}-unsigned.apk
-          compression-level: 0
+          compression-level: 6
       - name: Package corresponding source
         if: matrix.abi == 'arm64-v8a' && inputs.reuse_build_run == ''
         run: python3 tools/package-source.py
