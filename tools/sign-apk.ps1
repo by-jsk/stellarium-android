@@ -27,8 +27,11 @@ $verification | Set-Content -LiteralPath ($outputPath+'.signer.txt') -Encoding u
 if ($LASTEXITCODE -ne 0) { throw 'Final APK alignment verification failed' }
 $badging = & (Join-Path $androidTools 'aapt.exe') dump badging $outputPath
 if ($LASTEXITCODE -ne 0) { throw 'APK manifest could not be inspected' }
+$badging | Set-Content -LiteralPath ($outputPath+'.badging.txt') -Encoding utf8
 $version = Get-Content -Raw -LiteralPath (Join-Path $projectRoot 'version.json') | ConvertFrom-Json
 if (-not ($badging | Select-String -SimpleMatch ("name='"+$version.packageId+"'"))) { throw 'Unexpected APK package identity' }
+if (-not ($badging | Select-String -SimpleMatch ("versionCode='"+$version.versionCode+"'"))) { throw 'Unexpected APK version code' }
+if (-not ($badging | Select-String -SimpleMatch ("versionName='"+$version.versionName+"'"))) { throw 'Unexpected APK version name' }
 $badging | Select-Object -First 5
 $verification | Where-Object { $_ -match 'Verified|SHA-256|Verifies' }
 Get-FileHash -LiteralPath $outputPath -Algorithm SHA256 | Select-Object Algorithm,Hash,Path

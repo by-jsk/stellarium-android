@@ -15,6 +15,7 @@ cmake -S engine -B "$BUILD" -GNinja \
   -DQT_HOST_PATH="$QT_HOST_PATH" -DANDROID_SDK_ROOT="$ANDROID_SDK_ROOT" \
   -DANDROID_NDK_ROOT="$ANDROID_NDK_ROOT" -DANDROID_ABI="$ABI" \
   -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PWD/stage/$ABI" \
+  -DCMAKE_CXX_FLAGS="-Xclang -fno-pch-timestamp" \
   -DQT_NO_GLOBAL_APK_TARGET_PART_OF_ALL=ON \
   -DQt6LinguistTools_DIR="$QT_HOST_PATH/lib/cmake/Qt6LinguistTools" \
   -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache \
@@ -22,6 +23,7 @@ cmake -S engine -B "$BUILD" -GNinja \
   -DENABLE_SPEECH=ON -DENABLE_SCRIPTING=ON -DENABLE_XLSX=ON \
   -DENABLE_NLS=ON -DENABLE_PODIR=ON -DENABLE_QTWEBENGINE=OFF \
   -DENABLE_GPS=OFF -DENABLE_INDI=ON -DGENERATE_PACKAGE_TARGET=OFF
+cmake --build "$BUILD" --target src/CMakeFiles/stelMain.dir/mobile/MobileShell.cpp.o --parallel 2
 cmake --build "$BUILD" --parallel "${BUILD_JOBS:-3}"
 cmake --install "$BUILD"
 cp -a "stage/$ABI/share/stellarium/." engine/android/assets/
