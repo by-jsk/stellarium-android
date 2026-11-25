@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Start the real native engine on an emulator and collect its smoke report and screenshots."""
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -9,7 +10,7 @@ import time
 from PIL import Image
 from android_test_adb import adb
 
-out = Path('release/smoke')
+out = Path(os.environ.get('STELLAR_EVIDENCE_DIR','release/smoke'))
 out.mkdir(parents=True, exist_ok=True)
 
 subprocess.run(['adb', 'install', '--no-incremental', '-r', sys.argv[1]], check=True)
@@ -49,6 +50,8 @@ if report is None:
     raise SystemExit('Native smoke report timed out; see logcat.txt and native-stacks.txt')
 assert report['passed'], report
 report['emulator_ready_seconds_upper_bound']=ready_seconds
+report['android_page_size']=int(adb('shell','getconf','PAGESIZE').strip())
+if os.environ.get('STELLAR_EXPECT_PAGE_SIZE'):assert report['android_page_size']==int(os.environ['STELLAR_EXPECT_PAGE_SIZE'])
 (out/'memory.txt').write_text(adb('shell','dumpsys','meminfo','org.byjsk.stellartouch'),encoding='utf-8')
 # Read the actual rendered screen. A black screen alone must not pass.
 image=Image.open(out/'settings-ko.png').convert('RGB')

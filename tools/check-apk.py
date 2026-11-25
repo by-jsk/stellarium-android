@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Reject incomplete native APKs before installing or publishing them."""
 import json
+import struct
 import sys
 import zipfile
 from pathlib import Path
@@ -25,4 +26,18 @@ with zipfile.ZipFile(sys.argv[1]) as apk:
         assert any(p.startswith('assets/translations/stellarium/') and p.endswith('/'+lang+'.qm') for p in files), lang
     strings = json.loads(apk.read('assets/mobile-i18n.json'))
     assert set(strings) == {'ko', 'en', 'ja', 'zh', 'es', 'ru'}
+    libraries=0
+    for path in sorted(p for p in files if p.endswith('.so')):
+        with apk.open(path) as library:
+            header=library.read(64)
+            assert header[:6]==b'\x7fELF\x02\x01',path
+            offset=struct.unpack_from('<Q',header,32)[0]
+            stride,count=struct.unpack_from('<HH',header,54)
+            library.seek(offset);segments=library.read(stride*count)
+            for i in range(count):
+                segment=struct.unpack_from('<IIQQQQQQ',segments,i*stride)
+                if segment[0]==1:
+                    assert segment[7]>=16384 and segment[2]%16384==segment[3]%16384,f'Native library lacks 16-KiB page support: {path}'
+        libraries+=1
+    print(f'16-KiB ELF page alignment verified for all {libraries} native libraries')
     print(f'APK content verified: {len(files)} entries; {Path(sys.argv[1]).stat().st_size:,} bytes')

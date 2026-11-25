@@ -13,5 +13,5 @@
 근거:
 
 - [Stellarium 소스](https://github.com/Stellarium/stellarium)
-- [Qt Charts 라이선스](https://doc.qt.io/qt-6.8/qtcharts-index.html#licenses)
-- [Qt 6.8.3 전체 소스](https://download.qt.io/archive/qt/6.8/6.8.3/single/)
+- [Qt Charts 라이선스](https://doc.qt.io/qt-6.10/qtcharts-index.html#licenses)
+- [Qt 6.10.2 전체 소스](https://download.qt.io/archive/qt/6.10/6.10.2/single/)

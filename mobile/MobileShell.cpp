@@ -25,6 +25,7 @@
 #include <QLocationPermission>
 #include <QInputMethod>
 #include <QTimeZone>
+#include <QWindow>
 #include <cmath>
 #ifdef Q_OS_ANDROID
 #include <QJniObject>
@@ -35,6 +36,7 @@ static QJniObject androidContext() { return QNativeInterface::QAndroidApplicatio
 void MobileShell::prepare()
 {
     QCoreApplication::setApplicationName("StellarTouch");
+    QCoreApplication::setApplicationVersion(STELLAR_VERSION_NAME);
     QCoreApplication::setOrganizationName("by-jsk");
     const auto config = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/config";
     QDir().mkpath(config);
@@ -60,6 +62,9 @@ MobileShell::MobileShell(QGraphicsWidget* parent) : QObject(parent), root(parent
     connect(&StelApp::getInstance(), &StelApp::visionNightModeChanged, this, [this] {lighting();StelApp::getInstance().getSettings()->sync();toolbar();});
     connect(qApp,&QGuiApplication::applicationStateChanged,this,[](Qt::ApplicationState state){if(state!=Qt::ApplicationActive)StelApp::getInstance().getSettings()->sync();});
     layout();
+#if QT_VERSION >= QT_VERSION_CHECK(6,9,0)
+    if(auto window=StelMainView::getInstance().windowHandle())connect(window,&QWindow::safeAreaMarginsChanged,this,[this]{layout();});
+#endif
     qInfo() << "STELLAR_TOUCH_READY";
 #ifdef Q_OS_ANDROID
 #ifdef STELLAR_CI_FIXTURE
@@ -130,9 +135,15 @@ void MobileShell::toolbar()
 
 void MobileShell::layout()
 {
-    const auto size = StelMainView::getInstance().size();
-    if(bar) { bar->setPos(4,4); bar->resize(qMax(240,size.width()-8),104); }
-    if(panel) { panel->setPos(6,116); panel->resize(qMax(220,size.width()-12),qMax(120,size.height()-124)); }
+    auto& view=StelMainView::getInstance();
+    const auto size=view.size();QMargins safe;
+#if QT_VERSION >= QT_VERSION_CHECK(6,9,0)
+    if(auto window=view.windowHandle())safe=window->safeAreaMargins();
+#endif
+    qApp->setProperty("stellarSafeTop",safe.top());
+    const auto width=size.width()-safe.left()-safe.right(),height=size.height()-safe.top()-safe.bottom();
+    if(bar) { bar->setPos(safe.left()+4,safe.top()+4); bar->resize(qMax(240,width-8),104); }
+    if(panel) { panel->setPos(safe.left()+6,safe.top()+116); panel->resize(qMax(220,width-12),qMax(120,height-124)); }
 }
 
 bool MobileShell::eventFilter(QObject* watched, QEvent* event)
@@ -157,8 +168,12 @@ void MobileShell::fitDialog(QWidget* dialog, QGraphicsProxyWidget* proxy)
         }
     }
     const auto s=StelMainView::getInstance().size();
-    dialog->resize(qMax(240,s.width()-16),qMax(120,s.height()-136));
-    proxy->setPos(8,120); proxy->setZValue(260);
+    QMargins safe;
+#if QT_VERSION >= QT_VERSION_CHECK(6,9,0)
+    if(auto window=StelMainView::getInstance().windowHandle())safe=window->safeAreaMargins();
+#endif
+    dialog->resize(qMax(240,s.width()-16-safe.left()-safe.right()),qMax(120,s.height()-136-safe.top()-safe.bottom()));
+    proxy->setPos(safe.left()+8,safe.top()+120); proxy->setZValue(260);
 }
 
 void MobileShell::page(const char* title)
@@ -182,7 +197,7 @@ void MobileShell::addText(const QString& text) {auto l=new QLabel(text); l->setW
 void MobileShell::action(const QString& id) {if(auto a=StelApp::getInstance().getStelActionManager()->findAction(id)) {if(panel)panel->hide(); a->trigger();}}
 void MobileShell::settings() {page("settings"); addButton("?  "+trm("help"),[this]{help();}); addButton("ⓘ  "+trm("about"),[this]{about();}); addButton("文  "+trm("languages"),[this]{languages();}); addButton("↻  "+trm("update"),[this]{updates();});addButton(trm("observing"),[this]{observing();});}
 void MobileShell::help() {page("help"); addText(trm("guide"));}
-void MobileShell::about() {page("about"); addText(trm("description")); addText(trm("license")); addButton(trm("source"),[]{QDesktopServices::openUrl(QUrl("https://github.com/by-jsk/stellarium-android"));}); addButton(trm("desktopSettings"),[this]{action("actionShow_Configuration_Window_Global");});}
+void MobileShell::about() {page("about");addText(QString("Stellar Touch %1").arg(STELLAR_VERSION_NAME)); addText(trm("description")); addText(trm("license")); addButton(trm("source"),[]{QDesktopServices::openUrl(QUrl("https://github.com/by-jsk/stellarium-android"));}); addButton(trm("desktopSettings"),[this]{action("actionShow_Configuration_Window_Global");});}
 void MobileShell::languages()
 {
     page("languages"); auto conf=StelApp::getInstance().getSettings();

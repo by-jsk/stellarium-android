@@ -1,5 +1,6 @@
 """ADB snapshot handling for disposable CI emulators."""
 from pathlib import Path
+import os
 import subprocess
 import time
 
@@ -13,7 +14,7 @@ def adb(*args,binary=False):
                               **({} if binary else {'encoding':'utf-8','errors':'replace'}))
         if result.returncode==0:return result.stdout
         if snapshot:
-            folder=Path('release/smoke');folder.mkdir(parents=True,exist_ok=True)
+            folder=Path(os.environ.get('STELLAR_EVIDENCE_DIR','release/smoke'));folder.mkdir(parents=True,exist_ok=True)
             with (folder/'adb-errors.txt').open('a',encoding='utf-8') as file:
                 file.write(f'logcat exit {result.returncode}: {result.stderr}\n')
             # Android logcat can return 255 with a partial snapshot if its ring

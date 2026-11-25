@@ -15,11 +15,11 @@ is copied: `QT_NO_GLOBAL_APK_TARGET_PART_OF_ALL=ON` enforces that order.
 ## Execution and red illumination
 
 `tools/smoke-android.py` installs and launches the real native library on an
-Android 15 x86_64 emulator. The engine reports loaded objects (Sun, Moon, Mars,
+Android 16 x86_64 emulator and an Android 15 emulator with 16-KiB memory pages. The engine reports loaded objects (Sun, Moon, Mars,
 Sirius and M31), finite celestial positions, time changes, registered actions,
 language fallback, separate persisted region/language and Settings entry order
 in all six languages. It captures screenshots, logcat, memory and observed FPS.
-The pixel check requires visible red controls and rejects non-red illumination
+All native ELF libraries must support 16-KiB pages, and the second emulator's actual page size is checked. The pixel check requires visible red controls and rejects non-red illumination
 and a blank black screen. A timeout captures native thread stacks for diagnosis.
 
 The emulator's observed FPS and startup time are diagnostic measurements. They

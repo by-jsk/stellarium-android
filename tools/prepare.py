@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -55,14 +56,17 @@ if(ANDROID)
   set_target_properties(stellarium PROPERTIES
     QT_ANDROID_PACKAGE_NAME org.byjsk.stellartouch
     QT_ANDROID_MIN_SDK_VERSION 28
-    QT_ANDROID_TARGET_SDK_VERSION 35
-    QT_ANDROID_COMPILE_SDK_VERSION 35
+    QT_ANDROID_TARGET_SDK_VERSION 36
+    QT_ANDROID_COMPILE_SDK_VERSION 36
     QT_ANDROID_VERSION_CODE "@CODE@"
     QT_ANDROID_VERSION_NAME "@NAME@")
 endif()
 '''.replace('@CODE@', str(version['versionCode'])).replace('@NAME@', version['versionName'])
     src_cmake = src / 'src' / 'CMakeLists.txt'
-    if '# Stellar Touch:' not in src_cmake.read_text():
+    if '# Stellar Touch:' in src_cmake.read_text():
+        updated=re.sub(r'\n# Stellar Touch:.*?\nendif\(\)\n',lambda _:cmake_extra,src_cmake.read_text(),flags=re.S)
+        src_cmake.write_text(updated,encoding='utf-8',newline='\n')
+    else:
         with src_cmake.open('a', encoding='utf-8', newline='\n') as f:
             f.write(cmake_extra)
     # Keep data inside the package. Broad shared-storage access is unnecessary.
@@ -85,7 +89,11 @@ endif()
     replace(dialog, '#include "StelDialog.hpp"', '#include "StelDialog.hpp"\n#include "mobile/MobileShell.hpp"')
     replace(dialog, '\t\tproxy->setFocus();', '#ifdef Q_OS_ANDROID\n\t\tMobileShell::fitDialog(dialog, proxy);\n#endif\n\t\tproxy->setFocus();')
     sky_gui = src / 'src' / 'gui' / 'SkyGui.cpp'
-    replace(sky_gui, '\tinfoPanel->setPos(infoX, infoY);', '\tinfoY = qMax(infoY, qreal(118)); // Stellar Touch toolbar clearance\n\tinfoPanel->setTextWidth(qMax(220, StelMainView::getInstance().width()-20));\n\tinfoPanel->setPos(infoX, infoY);')
+    replace(sky_gui,'#include "SkyGui.hpp"','#include "SkyGui.hpp"\n#include <QApplication>')
+    toolbar='\tinfoY = qMax(infoY, qreal(118+qApp->property("stellarSafeTop").toInt())); // Stellar Touch toolbar clearance\n\tinfoPanel->setTextWidth(qMax(220, StelMainView::getInstance().width()-20));\n\tinfoPanel->setPos(infoX, infoY);'
+    legacy=toolbar.replace('118+qApp->property("stellarSafeTop").toInt()','118')
+    if legacy in sky_gui.read_text():replace(sky_gui,legacy,toolbar)
+    replace(sky_gui,'\tinfoPanel->setPos(infoX, infoY);',toolbar)
     defaults = src / 'cmake' / 'default_cfg.ini.cmake'
     replace(defaults, 'minimum_fps                         = 18', 'minimum_fps                         = 2')
     replace(defaults, 'maximum_fps                         = 10000', 'maximum_fps                         = 60')

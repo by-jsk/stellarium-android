@@ -21,7 +21,7 @@ from android_test_adb import adb
 
 package='org.byjsk.stellartouch'
 activity=package+'/'+package+'.StellarActivity'
-out=Path('release/smoke')
+out=Path(os.environ.get('STELLAR_EVIDENCE_DIR','release/smoke'))
 out.mkdir(parents=True,exist_ok=True)
 candidate=Path(sys.argv[1]).resolve()
 baseline=Path(sys.argv[2]).resolve()

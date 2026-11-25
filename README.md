@@ -12,10 +12,10 @@ Stellarium PC의 실제 C++/Qt 엔진을 Android에 이식하는 독립 GPL 프�
 git clone https://github.com/by-jsk/stellarium-android.git
 cd stellarium-android
 python3 tools/prepare.py --fetch
-QT_ROOT_DIR=/path/to/Qt/6.8.3/android_arm64_v8a \
-QT_HOST_PATH=/path/to/Qt/6.8.3/gcc_64 \
+QT_ROOT_DIR=/path/to/Qt/6.10.2/android_arm64_v8a \
+QT_HOST_PATH=/path/to/Qt/6.10.2/gcc_64 \
 ANDROID_SDK_ROOT=/path/to/android-sdk \
-ANDROID_NDK_ROOT=/path/to/android-sdk/ndk/26.1.10909125 \
+ANDROID_NDK_ROOT=/path/to/android-sdk/ndk/27.2.12479018 \
 bash tools/build-android.sh
 ```
 
