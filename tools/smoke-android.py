@@ -93,6 +93,10 @@ time.sleep(5)
 sky=Image.open(out/'sky-ko.png').convert('RGB')
 sky=sky.crop((0,60,sky.width,sky.height-100))
 assert sum(1 for r,g,b in sky.getdata() if g>6 or b>6)/(sky.width*sky.height)<0.005,'Closing the panel must keep the red sky Activity visible'
+# [20261126 by jsk] 메뉴와 지평선 외곽을 제외한 실제 하늘 화면이 검은색으로만 렌더링되는지 확인함.
+sky_center = sky.crop((sky.width//4, sky.height//5, sky.width*3//4, sky.height*4//5))
+report['rendered_sky_center_red_pixels'] = sum(1 for r,g,b in sky_center.getdata() if r>4)
+assert report['rendered_sky_center_red_pixels']>100,'The center of the red sky must contain rendered sky pixels'
 before=Image.open(out/'settings-ko.png').convert('RGB')
 after=Image.open(out/'sky-ko.png').convert('RGB')
 changed=sum(abs(a[0]-b[0])>4 for a,b in zip(before.getdata(),after.getdata()))

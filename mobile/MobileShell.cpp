@@ -13,6 +13,7 @@
 #include "StelActionMgr.hpp"
 #include "StelObjectMgr.hpp"
 #include "StelObject.hpp"
+#include "StelIniParser.hpp"
 #include "StelMovementMgr.hpp"
 #include "StelLocation.hpp"
 #include "StelLocationMgr.hpp"
@@ -42,6 +43,17 @@ namespace {
 // [20261126 by jsk] 검은 하늘의 별자리 선·이름을 분리하며 적색 야간 셰이더에서도 밝기를 확보함.
 const QString constellationLines = QStringLiteral("0.52,0.80,1.00");
 const QString constellationNames = QStringLiteral("1.00,0.91,0.66");
+
+// [20261126 by jsk] Stellarium 형식으로 읽어 쉼표가 포함된 색과 하늘 방향을 문자열로 보존함.
+QSettings::SettingsMap readMobileSettings(const QString& path)
+{
+    QSettings::SettingsMap values;
+    QFile file(path);
+    if (file.open(QIODevice::ReadOnly)) {
+        readStelIniFile(file, values);
+    }
+    return values;
+}
 }
 
 void MobileShell::prepare()
@@ -52,7 +64,7 @@ void MobileShell::prepare()
     const auto config = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/config";
     QDir().mkpath(config);
     qputenv("STEL_USERDIR", config.toUtf8());
-    QSettings initial(config+"/config.ini",QSettings::IniFormat);
+    const auto initial = readMobileSettings(config+"/config.ini");
     const int brightness=initial.value("mobile/nightBrightness",40).toInt();
     const bool night=initial.value("viewing/flag_night",true).toBool();
     qApp->setProperty("stellarNightBrightness",qBound(5,brightness,100)/100.0);
@@ -70,12 +82,15 @@ MobileShell::MobileShell(QGraphicsWidget* parent, SkyGui* skyGui) : QObject(pare
     showInfo = settings->value("mobile/showObjectInfo", true).toBool();
     auto constellations = GETSTELMODULE(ConstellationMgr);
     // [20261126 by jsk] 기존 어두운 설정을 한 번 교체하고 이후 사용자가 선택한 선 표시 여부를 보존함.
-    if (!settings->value("mobile/highContrastConstellations", false).toBool()) {
+    const bool firstPalette = !settings->value("mobile/highContrastConstellations", false).toBool();
+    if (firstPalette || settings->value("color/const_lines_color").toString().isEmpty()) {
         constellations->setLinesColor(Vec3f(constellationLines));
         constellations->setLabelsColor(Vec3f(constellationNames));
-        constellations->setFlagLines(true);
         settings->setValue("color/const_lines_color", constellationLines);
         settings->setValue("color/const_names_color", constellationNames);
+    }
+    if (firstPalette) {
+        constellations->setFlagLines(true);
         settings->setValue("viewing/flag_constellation_drawing", true);
         settings->setValue("mobile/highContrastConstellations", true);
     }
@@ -597,7 +612,7 @@ void MobileShell::smokeTest()
     }
     conf->setValue("mobile/language","unsupported");applyLanguage();check("unsupported_language_falls_back_to_english",language=="en");
     conf->setValue("mobile/language","ko");conf->setValue("mobile/region","JP");applyLanguage();conf->sync();
-    QSettings saved(conf->fileName(),QSettings::IniFormat);
+    const auto saved = readMobileSettings(conf->fileName());
     check("independent_persisted_language_region",saved.value("mobile/language")=="ko"&&saved.value("mobile/region")=="JP");
     // [20261126 by jsk] 설치 시 마이그레이션한 별자리 선 색이 엔진과 설정 양쪽에서 적용됐는지 확인함.
     const auto constellationMgr = GETSTELMODULE(ConstellationMgr);
@@ -605,7 +620,8 @@ void MobileShell::smokeTest()
     check("constellation_lines_visible_by_default", constellationMgr->getFlagLines());
     check("constellation_line_palette_applied", lineColor[0]>0.5f && lineColor[1]>0.75f && lineColor[2]>0.95f
           && saved.value("color/const_lines_color").toString()==constellationLines);
-    report.insert("constellation_line_rgb", QJsonArray{lineColor[0],lineColor[1],lineColor[2]});
+    report.insert("constellation_line_rgb", QJsonArray{qRound(lineColor[0]*100)/100.0,
+                  qRound(lineColor[1]*100)/100.0,qRound(lineColor[2]*100)/100.0});
     auto toggle=StelApp::getInstance().getStelActionManager()->findAction("actionShow_Constellation_Lines");
     bool toggled=false;if(toggle&&toggle->isCheckable()){const auto before=toggle->isChecked();toggle->trigger();toggled=toggle->isChecked()!=before;toggle->setChecked(before);}check("native_action_toggles_engine",toggled);
     const auto oldJD=StelApp::getInstance().getCore()->getJD();StelApp::getInstance().getCore()->setJD(2451545.0);

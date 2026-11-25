@@ -35,6 +35,7 @@ is retained in the log without being mislabeled as a Stellar Touch crash.
 The v0.1.1 native report also checks that constellation lines are enabled,
 the drawing manager and persisted settings both use the high-contrast palette,
 and the R button switches modes in both directions within the same activity.
+The red sky screenshot must also contain visible pixels away from the menus.
 
 The emulator's observed FPS and startup time are diagnostic measurements. They
 are not performance measurements on a Galaxy S25 or all supported devices.

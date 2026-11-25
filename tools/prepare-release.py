@@ -43,6 +43,7 @@ for report in (runtime, pages):
     assert report['constellation_line_palette_applied'] is True,'Constellation line palette must be applied'
     assert report['night_button_round_trip'] is True,'The night button must switch on and off safely'
     assert report['night_non_red_fraction']<0.005 and report['night_visible_red_pixels']>200
+    assert report['rendered_sky_center_red_pixels']>100,'Rendered red sky must be present outside the menu'
 previous_code=upgrade['previous_versionCode']
 installed_code=upgrade['installed_versionCode']
 assert type(previous_code) is int and previous_code==version['versionCode']-1
