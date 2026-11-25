@@ -17,7 +17,7 @@ import tempfile
 import threading
 import time
 import xml.etree.ElementTree as ET
-from android_test_adb import adb
+from android_test_adb import adb,app_crashed
 
 package='org.byjsk.stellartouch'
 activity=package+'/'+package+'.StellarActivity'
@@ -27,6 +27,7 @@ candidate=Path(sys.argv[1]).resolve()
 baseline=Path(sys.argv[2]).resolve()
 
 def launch(flag):
+    global app_pid
     adb('shell','am','force-stop',package)
     # PackageManager can report the new version before the old Activity/process
     # has finished being removed. Do not deliver the test intent to that Activity.
@@ -38,6 +39,7 @@ def launch(flag):
     else:raise AssertionError('Previous app process did not stop')
     adb('logcat','-c')
     print(adb('shell','am','start','-W','-n',activity,'--ez',flag,'true'),flush=True)
+    app_pid=adb('shell','pidof',package).strip().split()[0]
 
 def wait_marker(marker,seconds=150):
     deadline=time.monotonic()+seconds
@@ -46,7 +48,7 @@ def wait_marker(marker,seconds=150):
         (out/'upgrade-logcat.txt').write_text(logs,encoding='utf-8')
         found=re.search(re.escape(marker)+r'\s+(\{[^\n]*\})',logs)
         if found:return json.loads(found[1])
-        if 'Fatal signal' in logs or 'FATAL EXCEPTION' in logs:raise AssertionError('Upgrade fixture crashed')
+        if app_crashed(logs,app_pid):raise AssertionError('Upgrade fixture crashed')
         time.sleep(2)
     raise AssertionError('Timed out waiting for '+marker)
 

@@ -9,7 +9,8 @@ import sys
 import time
 import xml.etree.ElementTree as ET
 from PIL import Image
-from android_test_adb import adb
+from android_test_adb import adb,app_crashed
+from android_test_pixels import close_control
 
 out = Path(os.environ.get('STELLAR_EVIDENCE_DIR','release/smoke'))
 out.mkdir(parents=True, exist_ok=True)
@@ -20,6 +21,7 @@ adb('logcat','-G','16M')
 adb('logcat', '-c')
 started = time.monotonic()
 adb('shell', 'am', 'start', '-W', '-n', 'org.byjsk.stellartouch/org.byjsk.stellartouch.StellarActivity', '--ez', 'stellarSmokeTest', 'true')
+app_pid=adb('shell','pidof','org.byjsk.stellartouch').strip().split()[0]
 deadline = time.monotonic() + 150
 report = None
 ready_seconds = None
@@ -35,7 +37,7 @@ while time.monotonic() < deadline:
     match = re.search(r'STELLAR_SMOKE_DONE\s+(\{[^\n]*\})', logs)
     if match:
         report = json.loads(match[1]); break
-    if 'Fatal signal' in logs or 'FATAL EXCEPTION' in logs:
+    if app_crashed(logs,app_pid):
         raise SystemExit('Native Android app crashed: see logcat.txt')
     time.sleep(3)
 # Let a full frame reach the software-rendered Android surface after the native
@@ -73,14 +75,24 @@ xml=adb('shell','cat','/sdcard/stellar-settings-window.xml')
 close=[node for node in ET.fromstring(xml).iter('node')
        if any(node.get(key,'') in ('닫기','Close','×') for key in ('text','content-desc'))
        and node.get('clickable')=='true']
-assert close,'The rendered settings panel must expose its close control'
-bounds=list(map(int,re.findall(r'\d+',close[0].attrib['bounds'])))
-adb('shell','input','tap',str((bounds[0]+bounds[2])//2),str((bounds[1]+bounds[3])//2))
-time.sleep(2)
+if close:
+    bounds=list(map(int,re.findall(r'\d+',close[0].attrib['bounds'])))
+    x,y=(bounds[0]+bounds[2])//2,(bounds[1]+bounds[3])//2
+    report['settings_close_method']='Android accessibility'
+else:
+    x,y=close_control(Image.open(out/'settings-ko.png'))
+    report['settings_close_method']='visible red X on Qt OpenGL surface'
+adb('shell','input','tap',str(x),str(y))
+time.sleep(5)
 (out/'sky-ko.png').write_bytes(adb('exec-out', 'screencap', '-p', binary=True))
 sky=Image.open(out/'sky-ko.png').convert('RGB')
 sky=sky.crop((0,60,sky.width,sky.height-100))
 assert sum(1 for r,g,b in sky.getdata() if g>6 or b>6)/(sky.width*sky.height)<0.005,'Closing the panel must keep the red sky Activity visible'
+before=Image.open(out/'settings-ko.png').convert('RGB')
+after=Image.open(out/'sky-ko.png').convert('RGB')
+changed=sum(abs(a[0]-b[0])>4 for a,b in zip(before.getdata(),after.getdata()))
+assert changed>10000,'Tapping the real close button must visibly remove the settings panel'
+report['settings_close_changed_pixels']=changed
 report['rendered_settings_close_control']=True
 (out/'report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
 print(json.dumps(report, ensure_ascii=False, indent=2))

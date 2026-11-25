@@ -3,6 +3,13 @@ from pathlib import Path
 import os
 import subprocess
 import time
+import re
+
+def app_crashed(logs,pid):
+    """Google APIs emulator services can crash independently of the tested app."""
+    return any(re.search(r'\(\s*'+re.escape(str(pid))+r'\s*\):',line)
+               and ('Fatal signal' in line or 'FATAL EXCEPTION' in line)
+               for line in logs.splitlines())
 
 def adb(*args,binary=False):
     snapshot=args[0]=='logcat' and '-d' in args
