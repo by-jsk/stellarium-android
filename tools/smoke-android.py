@@ -9,7 +9,7 @@ import sys
 import time
 import xml.etree.ElementTree as ET
 from PIL import Image
-from android_test_adb import adb,app_crashed
+from android_test_adb import adb,app_crashed,report_from_log
 from android_test_pixels import close_control
 
 out = Path(os.environ.get('STELLAR_EVIDENCE_DIR','release/smoke'))
@@ -34,9 +34,9 @@ while time.monotonic() < deadline:
             print(line,flush=True);milestones.add(line)
     if ready_seconds is None and 'STELLAR_TOUCH_READY' in logs:
         ready_seconds=round(time.monotonic()-started,2)
-    match = re.search(r'STELLAR_SMOKE_DONE\s+(\{[^\n]*\})', logs)
-    if match:
-        report = json.loads(match[1]); break
+    report = report_from_log(logs, 'STELLAR_SMOKE_DONE')
+    if report is not None:
+        break
     if app_crashed(logs,app_pid):
         raise SystemExit('Native Android app crashed: see logcat.txt')
     time.sleep(3)
@@ -54,6 +54,11 @@ if report is None:
         (out/'native-stacks.txt').write_text(stacks.stdout+stacks.stderr,encoding='utf-8')
     raise SystemExit('Native smoke report timed out; see logcat.txt and native-stacks.txt')
 assert report['passed'], report
+package_version = re.search(r'\bversionCode=(\d+)\b', adb('shell','dumpsys','package','org.byjsk.stellartouch'))
+assert package_version, 'APK version must be read independently from Android PackageManager'
+installed_code = int(package_version[1])
+assert report.get('versionCode', installed_code) == installed_code, report
+report['versionCode'] = installed_code
 report['emulator_ready_seconds_upper_bound']=ready_seconds
 report['android_page_size']=int(adb('shell','getconf','PAGESIZE').strip())
 if os.environ.get('STELLAR_EXPECT_PAGE_SIZE'):assert report['android_page_size']==int(os.environ['STELLAR_EXPECT_PAGE_SIZE'])

@@ -17,7 +17,7 @@ import tempfile
 import threading
 import time
 import xml.etree.ElementTree as ET
-from android_test_adb import adb,app_crashed
+from android_test_adb import adb,app_crashed,report_from_log
 
 version=json.loads((Path(__file__).resolve().parents[1]/'version.json').read_text())
 code=version['versionCode']
@@ -49,8 +49,8 @@ def wait_marker(marker,seconds=150):
     while time.monotonic()<deadline:
         logs=adb('logcat','-d','-v','brief')
         (out/'upgrade-logcat.txt').write_text(logs,encoding='utf-8')
-        found=re.search(re.escape(marker)+r'\s+(\{[^\n]*\})',logs)
-        if found:return json.loads(found[1])
+        report=report_from_log(logs,marker)
+        if report is not None:return report
         if app_crashed(logs,app_pid):raise AssertionError('Upgrade fixture crashed')
         time.sleep(2)
     raise AssertionError('Timed out waiting for '+marker)
