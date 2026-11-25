@@ -33,6 +33,7 @@ cp LICENSE engine/android/assets/COPYING
 cp LICENSE-GPL-3.0.txt engine/android/assets/LICENSE-GPL-3.0.txt
 cp engine/CREDITS.md engine/android/assets/CREDITS.md
 python3 tools/package-notices.py "$ABI"
+python3 tools/prepare-gradle.py
 # Maven Central occasionally rate-limits shared CI runners. Retry only deployment;
 # compilation and the APK content contract must still succeed.
 for attempt in 1 2 3; do
@@ -43,5 +44,5 @@ done
 mkdir -p release
 find "$BUILD" -name '*release-unsigned.apk' -exec cp '{}' "release/StellarTouch-$ABI-unsigned.apk" \;
 test -f "release/StellarTouch-$ABI-unsigned.apk"
-python3 tools/check-apk.py "release/StellarTouch-$ABI-unsigned.apk" "$ABI"
+python3 tools/check-apk.py "release/StellarTouch-$ABI-unsigned.apk" "$ABI" "$QT_ROOT_DIR"
 ccache --show-stats

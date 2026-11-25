@@ -86,7 +86,7 @@ jobs:
           [[ "$REUSE_BUILD_RUN" =~ ^[0-9]+$ ]]
           previous=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$REUSE_BUILD_RUN" --jq '.head_sha')
           git fetch --depth=1 origin "$previous"
-          git diff --exit-code "$previous" HEAD -- mobile android tools/prepare.py tools/build-android.sh source.lock.json version.json
+          git diff --exit-code "$previous" HEAD -- mobile android tools/prepare.py tools/build-android.sh tools/prepare-gradle.py source.lock.json version.json
           python3 tools/check-source.py
       - uses: actions/download-artifact@v4
         if: inputs.reuse_build_run != ''

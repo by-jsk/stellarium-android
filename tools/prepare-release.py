@@ -19,7 +19,7 @@ apk=release/f'StellarTouch-v{name}.apk'
 source=release/f'StellarTouch-v{name}-source.tar.gz'
 assert apk.is_file() and source.is_file(),'Signed APK and matching complete source asset are required'
 subprocess.run([sys.executable,str(root/'tools/check-apk.py'),str(apk),'arm64-v8a'],check=True)
-required_source=['source.lock.json','version.json','mobile/MobileShell.cpp','mobile/MobileShell.hpp','mobile/i18n.json','android/src/org/byjsk/stellartouch/StellarActivity.java','tools/prepare.py','tools/build-android.sh']
+required_source=['source.lock.json','version.json','mobile/MobileShell.cpp','mobile/MobileShell.hpp','mobile/i18n.json','android/src/org/byjsk/stellartouch/StellarActivity.java','tools/prepare.py','tools/build-android.sh','tools/prepare-gradle.py']
 expected={'StellarTouch/'+p:hashlib.sha256((root/p).read_bytes()).digest() for p in required_source}
 with tarfile.open(source,'r|gz') as archive:
     for member in archive:

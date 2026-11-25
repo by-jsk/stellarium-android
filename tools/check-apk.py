@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Reject incomplete native APKs before installing or publishing them."""
 import json
+import hashlib
 import struct
 import sys
 import zipfile
@@ -35,6 +36,7 @@ with zipfile.ZipFile(sys.argv[1]) as apk:
         with apk.open(path) as library:
             header=library.read(64)
             assert header[:6]==b'\x7fELF\x02\x01',path
+            assert struct.unpack_from('<H',header,18)[0]=={'arm64-v8a':183,'x86_64':62}[sys.argv[2]],f'Wrong native ABI: {path}'
             offset=struct.unpack_from('<Q',header,32)[0]
             stride,count=struct.unpack_from('<HH',header,54)
             library.seek(offset);segments=library.read(stride*count)
@@ -43,5 +45,9 @@ with zipfile.ZipFile(sys.argv[1]) as apk:
                 if segment[0]==1:
                     assert segment[7]>=16384 and segment[2]%16384==segment[3]%16384,f'Native library lacks 16-KiB page support: {path}'
         libraries+=1
+    if len(sys.argv)>3:
+        original=(Path(sys.argv[3])/'lib/libavformat.so').read_bytes()
+        bundled=apk.read(f'lib/{sys.argv[2]}/libavformat.so')
+        assert hashlib.sha256(original).digest()==hashlib.sha256(bundled).digest(),'Packaging must preserve Qt FFmpeg libavformat.so without stripping'
     print(f'16-KiB ELF page alignment verified for all {libraries} native libraries')
     print(f'APK content verified: {len(files)} entries; {Path(sys.argv[1]).stat().st_size:,} bytes')
