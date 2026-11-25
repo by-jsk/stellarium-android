@@ -111,6 +111,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - name: Sign emulator fixture with a temporary test key
+        id: fixture
         if: matrix.abi == 'x86_64'
         run: |
           keytool -genkeypair -keystore "$RUNNER_TEMP/emulator-test.jks" -storepass android -keypass android -alias test -keyalg RSA -validity 30 -dname 'CN=Ephemeral emulator test'
@@ -132,7 +133,7 @@ jobs:
             python3 tools/smoke-android.py release/StellarTouch-x86_64-test.apk
             python3 tools/test-upgrade.py release/StellarTouch-x86_64-test.apk release/previous-test.apk
       - name: Verify on a 16-KiB page emulator
-        if: matrix.abi == 'x86_64'
+        if: always() && !cancelled() && matrix.abi == 'x86_64' && steps.fixture.outcome == 'success'
         uses: reactivecircus/android-emulator-runner@v2
         env:
           STELLAR_EVIDENCE_DIR: release/smoke-16k

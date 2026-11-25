@@ -33,7 +33,7 @@ assert pages['passed'] and pages['android_page_size']==16384,'16-KiB runtime ver
 assert runtime['passed'] and upgrade['passed'],'Execution and installer upgrade must pass'
 assert runtime['versionCode']==version['versionCode']
 assert upgrade['installed_versionCode']==version['versionCode']
-assert upgrade['system_install_confirmed'] and upgrade['language_preserved']=='ko' and upgrade['region_preserved']=='JP'
+assert upgrade['system_install_confirmed'] and upgrade['system_install_completed'] and upgrade['language_preserved']=='ko' and upgrade['region_preserved']=='JP'
 assert runtime['night_non_red_fraction']<0.005 and runtime['night_visible_red_pixels']>200
 signer=Path(str(apk)+'.signer.txt').read_text(encoding='utf-8-sig')
 assert ('Verified using v2 scheme (APK Signature Scheme v2): true' in signer or

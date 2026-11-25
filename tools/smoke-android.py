@@ -7,6 +7,7 @@ import re
 import subprocess
 import sys
 import time
+import xml.etree.ElementTree as ET
 from PIL import Image
 from android_test_adb import adb
 
@@ -37,7 +38,9 @@ while time.monotonic() < deadline:
     if 'Fatal signal' in logs or 'FATAL EXCEPTION' in logs:
         raise SystemExit('Native Android app crashed: see logcat.txt')
     time.sleep(3)
-time.sleep(1)
+# Let a full frame reach the software-rendered Android surface after the native
+# self-check changes six languages. Its first report can precede presentation.
+time.sleep(8)
 (out/'settings-ko.png').write_bytes(adb('exec-out', 'screencap', '-p', binary=True))
 if report is None:
     # The Google APIs CI emulator supports root; capture stalled native threads.
@@ -62,9 +65,22 @@ red=sum(1 for r,g,b in pixels if r>25 and g<7 and b<7)
 report['night_non_red_fraction']=round(colored/len(pixels),6)
 report['night_visible_red_pixels']=red
 assert colored/len(pixels)<0.005 and red>200,'Night mode must render visible pure red controls'
-# Close the real settings panel through Back, then capture the rendered sky.
-adb('shell', 'input', 'keyevent', '4')
+# Use the panel's actual accessible close control. Android 16's predictive Back
+# can leave the Activity instead of sending the legacy Qt Key_Back event.
+adb('shell','uiautomator','dump','/sdcard/stellar-settings-window.xml')
+xml=adb('shell','cat','/sdcard/stellar-settings-window.xml')
+(out/'settings-window.xml').write_text(xml,encoding='utf-8')
+close=[node for node in ET.fromstring(xml).iter('node')
+       if any(node.get(key,'') in ('닫기','Close','×') for key in ('text','content-desc'))
+       and node.get('clickable')=='true']
+assert close,'The rendered settings panel must expose its close control'
+bounds=list(map(int,re.findall(r'\d+',close[0].attrib['bounds'])))
+adb('shell','input','tap',str((bounds[0]+bounds[2])//2),str((bounds[1]+bounds[3])//2))
 time.sleep(2)
 (out/'sky-ko.png').write_bytes(adb('exec-out', 'screencap', '-p', binary=True))
+sky=Image.open(out/'sky-ko.png').convert('RGB')
+sky=sky.crop((0,60,sky.width,sky.height-100))
+assert sum(1 for r,g,b in sky.getdata() if g>6 or b>6)/(sky.width*sky.height)<0.005,'Closing the panel must keep the red sky Activity visible'
+report['rendered_settings_close_control']=True
 (out/'report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
 print(json.dumps(report, ensure_ascii=False, indent=2))
