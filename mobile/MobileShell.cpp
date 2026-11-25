@@ -239,7 +239,10 @@ void MobileShell::search()
 void MobileShell::time()
 {
     page("time"); auto core=StelApp::getInstance().getCore();
-    auto input=new QDateTimeEdit(QDateTime::fromMSecsSinceEpoch(qint64((core->getJD()-2440587.5)*86400000.0)).toLocalTime()); input->setDisplayFormat("yyyy-MM-dd HH:mm:ss"); input->setLocale(QLocale(qApp->property("stellarRegionLocale").toString())); input->setAccessibleName(trm("time")); body->addWidget(input);
+    QTimeZone zone(core->getCurrentTimeZone().toUtf8());
+    if(!zone.isValid())zone=QTimeZone::fromSecondsAheadOfUtc(qRound(core->getUTCOffset(core->getJD())*3600));
+    addText(trm("timezone")+": "+QString::fromUtf8(zone.id()));
+    auto input=new QDateTimeEdit;input->setTimeZone(zone);input->setDateTime(QDateTime::fromMSecsSinceEpoch(qint64((core->getJD()-2440587.5)*86400000.0),zone)); input->setDisplayFormat("yyyy-MM-dd HH:mm:ss"); input->setLocale(QLocale(qApp->property("stellarRegionLocale").toString())); input->setAccessibleName(trm("time")); body->addWidget(input);
     addButton(trm("applyTime"),[this,input,core]{core->setJD(input->dateTime().toUTC().toMSecsSinceEpoch()/86400000.0+2440587.5);panel->hide();});
     addButton(trm("now"),[this,core]{core->setJD(QDateTime::currentMSecsSinceEpoch()/86400000.0+2440587.5);core->setTimeRate(1.0/86400.0);panel->hide();});
     addButton(trm("pause"),[core]{core->setTimeRate(0);}); addButton("1×",[core]{core->setTimeRate(1.0/86400.0);}); addButton("100×",[core]{core->setTimeRate(100.0/86400.0);}); addButton("−100×",[core]{core->setTimeRate(-100.0/86400.0);});
@@ -447,7 +450,11 @@ void MobileShell::smokeTest()
     auto toggle=StelApp::getInstance().getStelActionManager()->findAction("actionShow_Constellation_Lines");
     bool toggled=false;if(toggle&&toggle->isCheckable()){const auto before=toggle->isChecked();toggle->trigger();toggled=toggle->isChecked()!=before;toggle->setChecked(before);}check("native_action_toggles_engine",toggled);
     const auto oldJD=StelApp::getInstance().getCore()->getJD();StelApp::getInstance().getCore()->setJD(2451545.0);
-    check("time_sets_j2000",qAbs(StelApp::getInstance().getCore()->getJD()-2451545.0)<1e-8);StelApp::getInstance().getCore()->setJD(oldJD);
+    check("time_sets_j2000",qAbs(StelApp::getInstance().getCore()->getJD()-2451545.0)<1e-8);
+    time();auto date=content->findChild<QDateTimeEdit*>();
+    check("time_editor_uses_observer_zone",date&&date->dateTime().offsetFromUtc()==qRound(StelApp::getInstance().getCore()->getUTCOffset(2451545.0)*3600));
+    check("time_editor_preserves_utc",date&&qAbs(date->dateTime().toMSecsSinceEpoch()/86400000.0+2440587.5-2451545.0)<1e-8);
+    StelApp::getInstance().getCore()->setJD(oldJD);
     check("all_action_catalog_available",StelApp::getInstance().getStelActionManager()->getActionList().size()>50);
     check("all_compiled_plugins_listed",StelApp::getInstance().getModuleMgr().getPluginsList().size()>=29);
     check("plugin_loads_on_demand",loadPlugin("AngleMeasure")&&StelApp::getInstance().getStelActionManager()->findAction("actionShow_Angle_Measure"));
