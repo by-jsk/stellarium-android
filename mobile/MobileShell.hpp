@@ -34,6 +34,8 @@ private:
     void tools();
     void updates();
     void applyLanguage();
+    void observing();
+    void lighting();
     void smokeTest();
     void action(const QString& id);
     void addButton(const QString& label, const std::function<void()>& callback);

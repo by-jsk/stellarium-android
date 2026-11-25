@@ -74,6 +74,30 @@ endif()
     dialog = src / 'src' / 'gui' / 'StelDialog.cpp'
     replace(dialog, '#include "StelDialog.hpp"', '#include "StelDialog.hpp"\n#include "mobile/MobileShell.hpp"')
     replace(dialog, '\t\tproxy->setFocus();', '#ifdef Q_OS_ANDROID\n\t\tMobileShell::fitDialog(dialog, proxy);\n#endif\n\t\tproxy->setFocus();')
+    sky_gui = src / 'src' / 'gui' / 'SkyGui.cpp'
+    replace(sky_gui, '\tinfoPanel->setPos(infoX, infoY);', '\tinfoY = qMax(infoY, qreal(118)); // Stellar Touch toolbar clearance\n\tinfoPanel->setTextWidth(qMax(220, StelMainView::getInstance().width()-20));\n\tinfoPanel->setPos(infoX, infoY);')
+    defaults = src / 'cmake' / 'default_cfg.ini.cmake'
+    replace(defaults, 'minimum_fps                         = 18', 'minimum_fps                         = 2')
+    replace(defaults, 'maximum_fps                         = 10000', 'maximum_fps                         = 60')
+    replace(defaults, 'flag_night                          = false', 'flag_night                          = true')
+    view = src / 'src' / 'StelMainView.cpp'
+    replace(view, '"uniform sampler2D  u_source;\\n"', '"uniform sampler2D  u_source;\\n"\n\t\t\t\t"uniform mediump float u_nightBrightness;\\n"')
+    replace(view, 'vec4(luminance, luminance * 0.3, 0.0, 1.0)', 'vec4(luminance * u_nightBrightness, 0.0, 0.0, 1.0)')
+    replace(view, 'program->setUniformValue(vars.source, 0);', 'program->setUniformValue(vars.source, 0);\n\t\tprogram->setUniformValue("u_nightBrightness", GLfloat(qApp->property("stellarNightBrightness").toDouble()));')
+    splash = src / 'src' / 'StelSplashScreen.cpp'
+    replace(splash, 'const QString titleText = "Stellarium";', 'const QString titleText = "Stellar Touch";')
+    replace(splash, 'const QString subtitleText = "stellarium.org";', 'const QString subtitleText = "Stellarium engine / GPL";')
+    text = splash.read_text(encoding='utf-8')
+    if 'Stellar Touch red startup' not in text:
+        text = text.replace('Qt::white', 'QColor(125, 0, 0)')
+        text = text.replace('setPixmap(makePixmap(sizeRatio));', '''// Stellar Touch red startup: never show the desktop white splash.
+    QImage image = makePixmap(sizeRatio).toImage().convertToFormat(QImage::Format_ARGB32);
+    for (int y=0; y<image.height(); ++y) {
+        auto line=reinterpret_cast<QRgb*>(image.scanLine(y));
+        for(int x=0; x<image.width(); ++x) {const auto c=line[x];line[x]=qRgba(qMax(qRed(c),qMax(qGreen(c),qBlue(c)))/3,0,0,qAlpha(c));}
+    }
+    setPixmap(QPixmap::fromImage(image));''')
+        splash.write_text(text, encoding='utf-8', newline='\n')
     print(f'Mobile layer prepared at {src}, upstream {actual}')
 
 if __name__ == '__main__':

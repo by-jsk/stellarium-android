@@ -17,8 +17,13 @@ import android.os.Environment;
 import android.os.Handler;
 import android.provider.Settings;
 import android.widget.Toast;
+import android.view.View;
+import android.view.WindowManager;
+import android.graphics.Color;
 import java.io.File;
 import java.util.Arrays;
+import java.util.Locale;
+import org.json.JSONObject;
 
 /** System download + package installer, preserving the installed package and its data. */
 public class StellarActivity extends QtActivity {
@@ -27,6 +32,29 @@ public class StellarActivity extends QtActivity {
     private boolean polling;
 
     public boolean isSmokeTest() { return getIntent().getBooleanExtra("stellarSmokeTest", false); }
+    public int installedVersionCode() {
+        try { return (int)getPackageManager().getPackageInfo(getPackageName(),0).getLongVersionCode(); }
+        catch(Exception e) { return Integer.MAX_VALUE; }
+    }
+    public String countryName(String country, String language) {
+        return new Locale("",country).getDisplayCountry(Locale.forLanguageTag(language));
+    }
+    private String text(String key) {
+        try { return new JSONObject(state.getString("messages","{}")).optString(key,"Stellar Touch"); }
+        catch(Exception e) { return "Stellar Touch"; }
+    }
+    private void message(String key) { Toast.makeText(this,text(key),Toast.LENGTH_LONG).show(); }
+    public void setNightLighting(boolean enabled, int brightness, boolean keepAwake) {
+        runOnUiThread(() -> {
+            WindowManager.LayoutParams attributes=getWindow().getAttributes();
+            attributes.screenBrightness=enabled ? 0.02f+0.18f*Math.max(5,Math.min(brightness,100))/100.0f : WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE;
+            getWindow().setAttributes(attributes);
+            getWindow().setStatusBarColor(Color.BLACK);getWindow().setNavigationBarColor(Color.BLACK);
+            if(keepAwake)getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+        });
+    }
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
@@ -34,19 +62,20 @@ public class StellarActivity extends QtActivity {
     }
 
     /** Called only after the user taps the localized install button. */
-    public void downloadUpdate(final String url, final int code, final String label) {
+    public void downloadUpdate(final String url, final int code, final String messages) {
         runOnUiThread(() -> {
             if (!url.matches("https://github\\.com/by-jsk/app-downloads/releases/download/stellar-touch-v([0-9]+\\.[0-9]+\\.[0-9]+)/StellarTouch-v\\1\\.apk")) return;
             try {
                 if (code <= getPackageManager().getPackageInfo(getPackageName(), 0).getLongVersionCode()) return;
                 if (state.getLong("download", -1) >= 0) { poll(); return; }
-                state.edit().putString("url", url).putInt("code", code).putString("label", label).apply();
+                state.edit().putString("url", url).putInt("code", code).putString("messages", messages).apply();
                 if (!getPackageManager().canRequestPackageInstalls()) {
+                    message("allowInstall");
                     startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + getPackageName())));
                     return;
                 }
                 enqueue();
-            } catch (Exception e) { android.util.Log.e("StellarTouch", "Update could not start", e); }
+            } catch (Exception e) { message("updateError"); android.util.Log.e("StellarTouch", "Update could not start", e); }
         });
     }
 
@@ -58,14 +87,15 @@ public class StellarActivity extends QtActivity {
             File destination = new File(directory, "StellarTouch-" + state.getInt("code", 0) + ".apk");
             if (destination.exists() && !destination.delete()) return;
             DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
-            request.setTitle(state.getString("label", "Stellar Touch"));
+            request.setTitle(text("update"));
             request.setMimeType("application/vnd.android.package-archive");
             request.setDestinationUri(Uri.fromFile(destination));
             request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
             long id = ((DownloadManager)getSystemService(Context.DOWNLOAD_SERVICE)).enqueue(request);
             state.edit().putLong("download", id).putString("path", destination.getAbsolutePath()).remove("url").apply();
+            message("downloading");
             poll();
-        } catch (Exception e) { android.util.Log.e("StellarTouch", "Update download failed", e); }
+        } catch (Exception e) { message("updateError"); android.util.Log.e("StellarTouch", "Update download failed", e); }
     }
 
     private boolean sameSigner(PackageInfo installed, PackageInfo incoming) {
@@ -87,7 +117,7 @@ public class StellarActivity extends QtActivity {
                 if (cursor == null || !cursor.moveToFirst()) { state.edit().remove("download").apply(); return; }
                 int status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
                 if (status == DownloadManager.STATUS_FAILED) {
-                    state.edit().remove("download").apply(); return;
+                    state.edit().remove("download").apply(); message("updateError"); return;
                 }
                 if (status != DownloadManager.STATUS_SUCCESSFUL) { poll(); return; }
                 PackageManager pm = getPackageManager();
@@ -98,7 +128,7 @@ public class StellarActivity extends QtActivity {
                     && next.getLongVersionCode() > installed.getLongVersionCode()
                     && sameSigner(installed, next);
                 state.edit().remove("download").apply();
-                if (!valid) { android.util.Log.e("StellarTouch", "Rejected APK package, version, or signer mismatch"); return; }
+                if (!valid) { message("updateError"); android.util.Log.e("StellarTouch", "Rejected APK package, version, or signer mismatch"); return; }
                 Uri apk = dm.getUriForDownloadedFile(id);
                 if (apk != null) startActivity(new Intent(Intent.ACTION_VIEW).setDataAndType(apk, "application/vnd.android.package-archive")
                     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION));
