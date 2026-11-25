@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (C) 2026 by-jsk. Independent mobile interface for Stellarium.
 #include "MobileShell.hpp"
+#include "MobileVersion.hpp"
 #include "StelMainView.hpp"
 #include "StelApp.hpp"
 #include "StelCore.hpp"
@@ -9,6 +10,7 @@
 #include "StelObjectMgr.hpp"
 #include "StelMovementMgr.hpp"
 #include "StelLocation.hpp"
+#include "StelLocationMgr.hpp"
 #include <QtWidgets>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -191,7 +193,7 @@ void MobileShell::location()
     page("location"); auto core=StelApp::getInstance().getCore(); auto loc=core->getCurrentLocation();
     addText(trm("latitude")); auto lat=new QDoubleSpinBox;lat->setRange(-90,90);lat->setDecimals(5);lat->setValue(loc.getLatitude());lat->setAccessibleName(trm("latitude"));body->addWidget(lat);
     addText(trm("longitude")); auto lon=new QDoubleSpinBox;lon->setRange(-180,180);lon->setDecimals(5);lon->setValue(loc.getLongitude());lon->setAccessibleName(trm("longitude"));body->addWidget(lon);
-    addButton(trm("save"),[this,lat,lon,core,loc]()mutable{loc.planetName="Earth";loc.name=trm("location");loc.setLatitude(lat->value());loc.setLongitude(lon->value());core->moveObserverTo(loc,0);auto conf=StelApp::getInstance().getSettings();conf->setValue("init_location/location",loc.serializeToLine());conf->sync();panel->hide();});
+    addButton(trm("save"),[this,lat,lon,core,loc]()mutable{loc.planetName="Earth";loc.name="Stellar Touch";loc.role='X';loc.isUserLocation=true;loc.setLatitude(lat->value());loc.setLongitude(lon->value());auto& manager=StelApp::getInstance().getLocationMgr();manager.saveUserLocation(loc);core->moveObserverTo(loc,0);core->setDefaultLocationID(loc.getID());panel->hide();});
     addButton(trm("gps"),[this,lat,lon]{auto source=QGeoPositionInfoSource::createDefaultSource(this);if(!source){addText(trm("gpsError"));return;}
         QPointer<QDoubleSpinBox> latitude=lat,longitude=lon;
         connect(source,&QGeoPositionInfoSource::positionUpdated,this,[source,latitude,longitude](const QGeoPositionInfo& pos){if(latitude&&longitude){latitude->setValue(pos.coordinate().latitude());longitude->setValue(pos.coordinate().longitude());}source->deleteLater();});
@@ -213,7 +215,7 @@ void MobileShell::updates()
     auto reply=network->get(request);
     connect(reply,&QNetworkReply::finished,this,[this,reply,network,result]{auto data=reply->readAll();const auto error=reply->error();reply->deleteLater();network->deleteLater();if(!result)return;
         if(error!=QNetworkReply::NoError){result->setText(trm("updateError"));return;}auto info=QJsonDocument::fromJson(data).object();const int code=info.value("versionCode").toInt();const auto ver=info.value("versionName").toString();const auto apk=info.value("apk").toString();
-        if(code<=1){result->setText(trm("upToDate"));return;}
+        if(code<=STELLAR_VERSION_CODE){result->setText(trm("upToDate"));return;}
         const auto expected=QString("https://github.com/by-jsk/app-downloads/releases/download/stellar-touch-v%1/StellarTouch-v%1.apk").arg(ver);
         if(!QRegularExpression("^[0-9]+\\.[0-9]+\\.[0-9]+$").match(ver).hasMatch()||apk!=expected){result->setText(trm("updateError"));return;}
         const auto notes=info.value("notes");const auto text=notes.isObject()?notes.toObject().value(language).toString(notes.toObject().value("en").toString()):notes.toString();result->setText(ver+"\n"+text);

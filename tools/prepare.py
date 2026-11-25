@@ -34,6 +34,9 @@ def main():
     shutil.copytree(ROOT / 'mobile', src / 'src' / 'mobile', dirs_exist_ok=True)
     shutil.copytree(ROOT / 'android', src / 'android', dirs_exist_ok=True)
     version = json.loads((ROOT / 'version.json').read_text())
+    (src / 'src' / 'mobile' / 'MobileVersion.hpp').write_text(
+        f'#pragma once\n#define STELLAR_VERSION_CODE {version["versionCode"]}\n'
+        f'#define STELLAR_VERSION_NAME "{version["versionName"]}"\n', encoding='utf-8')
     manifest = src / 'android' / 'AndroidManifest.xml'
     manifest.write_text(manifest.read_text().replace('@VERSION_CODE@', str(version['versionCode'])).replace('@VERSION_NAME@', version['versionName']), encoding='utf-8')
     shutil.copy(ROOT / 'mobile' / 'i18n.json', src / 'android' / 'assets' / 'mobile-i18n.json')
