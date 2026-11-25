@@ -17,6 +17,7 @@ import tempfile
 import threading
 import time
 import xml.etree.ElementTree as ET
+from android_test_adb import adb
 
 package='org.byjsk.stellartouch'
 activity=package+'/'+package+'.StellarActivity'
@@ -24,9 +25,6 @@ out=Path('release/smoke')
 out.mkdir(parents=True,exist_ok=True)
 candidate=Path(sys.argv[1]).resolve()
 baseline=Path(sys.argv[2]).resolve()
-
-def adb(*args,binary=False):
-    return subprocess.check_output(['adb',*args],text=not binary)
 
 def launch(flag):
     adb('shell','am','force-stop',package)

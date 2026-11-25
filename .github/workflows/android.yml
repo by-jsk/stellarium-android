@@ -3,13 +3,21 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      reuse_build_run:
+        description: 'Optional run ID with matching prebuilt APK artifacts (test-harness-only changes)'
+        required: false
+        type: string
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: android-${{ github.ref }}
   cancel-in-progress: false
 jobs:
   android:
+    env:
+      REUSE_BUILD_RUN: ${{ inputs.reuse_build_run }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
@@ -35,8 +43,11 @@ jobs:
           packages: platform-tools
       - uses: gradle/actions/setup-gradle@v4
       - name: Android SDK and NDK
-        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'ndk;26.1.10909125'
+        run: |
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+          if [ -z "$REUSE_BUILD_RUN" ]; then sdkmanager 'ndk;26.1.10909125'; fi
       - uses: jurplel/install-qt-action@v4
+        if: inputs.reuse_build_run == ''
         with:
           version: '6.8.3'
           host: all_os
@@ -45,17 +56,20 @@ jobs:
           modules: 'qtcharts qtpositioning qtserialport qtmultimedia qtimageformats qtspeech'
           cache: true
       - uses: actions/cache/restore@v4
+        if: inputs.reuse_build_run == ''
         with:
           path: .ccache
           key: android-ccache-${{ matrix.abi }}-${{ github.run_id }}
           restore-keys: android-ccache-${{ matrix.abi }}-
       - name: Prepare pinned PC engine
+        if: inputs.reuse_build_run == ''
         env:
           STELLAR_CI_FIXTURE: ${{ matrix.abi == 'x86_64' && '1' || '0' }}
         run: |
           python3 tools/check-source.py
           python3 tools/prepare.py --fetch
       - name: Build Android APK with bundled PC data
+        if: inputs.reuse_build_run == ''
         env:
           ANDROID_ABI: ${{ matrix.abi }}
         run: |
@@ -64,8 +78,31 @@ jobs:
           export ANDROID_NDK_ROOT="$ANDROID_SDK_ROOT/ndk/26.1.10909125"
           bash tools/build-android.sh 2>&1 | tee build.log
           test -s "release/StellarTouch-${ANDROID_ABI}-unsigned.apk"
+      - name: Verify the reused APK's native source identity
+        if: inputs.reuse_build_run != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [[ "$REUSE_BUILD_RUN" =~ ^[0-9]+$ ]]
+          previous=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$REUSE_BUILD_RUN" --jq '.head_sha')
+          git fetch --depth=1 origin "$previous"
+          git diff --exit-code "$previous" HEAD -- mobile android tools/prepare.py tools/build-android.sh source.lock.json version.json
+          python3 tools/check-source.py
+      - uses: actions/download-artifact@v4
+        if: inputs.reuse_build_run != ''
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.reuse_build_run }}
+          name: apk-${{ matrix.abi }}
+          path: release
+      - name: Upload unsigned APK before runtime tests
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-${{ matrix.abi }}
+          path: release/StellarTouch-${{ matrix.abi }}-unsigned.apk
+          compression-level: 0
       - name: Package corresponding source
-        if: matrix.abi == 'arm64-v8a'
+        if: matrix.abi == 'arm64-v8a' && inputs.reuse_build_run == ''
         run: python3 tools/package-source.py
       - name: Enable emulator acceleration
         if: matrix.abi == 'x86_64'
@@ -104,13 +141,6 @@ jobs:
             build-*/CMakeCache.txt
           if-no-files-found: warn
           compression-level: 0
-      - name: Upload unsigned APK
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: apk-${{ matrix.abi }}
-          path: release/StellarTouch-${{ matrix.abi }}-unsigned.apk
-          compression-level: 0
       - name: Upload execution report and screen previews
         if: always() && matrix.abi == 'x86_64'
         uses: actions/upload-artifact@v4
@@ -119,14 +149,14 @@ jobs:
           path: release/smoke/
           if-no-files-found: ignore
       - name: Upload corresponding source part 1
-        if: success() && matrix.abi == 'arm64-v8a'
+        if: success() && matrix.abi == 'arm64-v8a' && inputs.reuse_build_run == ''
         uses: actions/upload-artifact@v4
         with:
           name: corresponding-source-part-00
           path: release/source-parts/*.part-00
           compression-level: 0
       - name: Upload corresponding source part 2
-        if: success() && matrix.abi == 'arm64-v8a'
+        if: success() && matrix.abi == 'arm64-v8a' && inputs.reuse_build_run == ''
         uses: actions/upload-artifact@v4
         with:
           name: corresponding-source-part-01
@@ -134,7 +164,7 @@ jobs:
           if-no-files-found: ignore
           compression-level: 0
       - name: Save compiler cache even on failure
-        if: always()
+        if: always() && inputs.reuse_build_run == ''
         uses: actions/cache/save@v4
         with:
           path: .ccache

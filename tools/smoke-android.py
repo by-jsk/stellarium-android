@@ -7,15 +7,14 @@ import subprocess
 import sys
 import time
 from PIL import Image
+from android_test_adb import adb
 
 out = Path('release/smoke')
 out.mkdir(parents=True, exist_ok=True)
 
-def adb(*args, binary=False):
-    return subprocess.check_output(['adb', *args], text=not binary)
-
 subprocess.run(['adb', 'install', '--no-incremental', '-r', sys.argv[1]], check=True)
 adb('shell','settings','put','secure','immersive_mode_confirmations','confirmed')
+adb('logcat','-G','16M')
 adb('logcat', '-c')
 started = time.monotonic()
 adb('shell', 'am', 'start', '-W', '-n', 'org.byjsk.stellartouch/org.byjsk.stellartouch.StellarActivity', '--ez', 'stellarSmokeTest', 'true')
