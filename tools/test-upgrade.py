@@ -28,8 +28,16 @@ baseline=Path(sys.argv[2]).resolve()
 
 def launch(flag):
     adb('shell','am','force-stop',package)
+    # PackageManager can report the new version before the old Activity/process
+    # has finished being removed. Do not deliver the test intent to that Activity.
+    deadline=time.monotonic()+15
+    while time.monotonic()<deadline:
+        process=subprocess.run(['adb','shell','pidof',package],capture_output=True,text=True)
+        if not process.stdout.strip():break
+        time.sleep(0.5)
+    else:raise AssertionError('Previous app process did not stop')
     adb('logcat','-c')
-    adb('shell','am','start','-W','-n',activity,'--ez',flag,'true')
+    print(adb('shell','am','start','-W','-n',activity,'--ez',flag,'true'),flush=True)
 
 def wait_marker(marker,seconds=150):
     deadline=time.monotonic()+seconds
@@ -47,6 +55,7 @@ subprocess.run(['adb','install','--no-incremental',str(baseline)],check=True)
 launch('stellarSmokeTest')
 seed=wait_marker('STELLAR_SMOKE_DONE')
 assert seed['passed'],seed
+print('Previous-version engine and independent Korean/Japan preferences verified',flush=True)
 assert 'versionCode=0' in adb('shell','dumpsys','package',package)
 adb('shell','appops','set',package,'REQUEST_INSTALL_PACKAGES','allow')
 adb('shell','settings','put','global','package_verifier_enable','0')
@@ -69,18 +78,33 @@ with tempfile.TemporaryDirectory(prefix='stellar-upgrade-') as directory:
     try:
         launch('stellarUpgradeTest')
         offered=wait_marker('STELLAR_UPDATE_OFFERED')
+        print('Real update screen offered the candidate',flush=True)
         (out/'upgrade-offer.png').write_bytes(adb('exec-out','screencap','-p',binary=True))
         adb('shell','input','tap',str(offered['x']),str(offered['y']))
         deadline=time.monotonic()+180
         prompted=False
+        completed=False
         while time.monotonic()<deadline:
             installed=adb('shell','dumpsys','package',package)
-            if re.search(r'versionCode=1\s',installed):break
             adb('shell','uiautomator','dump','/sdcard/stellar-update-window.xml')
             xml=adb('shell','cat','/sdcard/stellar-update-window.xml')
             (out/'upgrade-installer.xml').write_text(xml,encoding='utf-8')
-            for node in ET.fromstring(xml).iter('node'):
-                if node.get('text','').lower() in ('install','update','설치','업데이트') and node.get('clickable')=='true':
+            nodes=list(ET.fromstring(xml).iter('node'))
+            finished=[node for node in nodes if node.get('package')=='com.google.android.packageinstaller'
+                      and node.get('text','').lower() in ('done','open','완료','열기')
+                      and node.get('enabled')=='true' and node.get('clickable')=='true']
+            if re.search(r'versionCode=1\s',installed) and finished:
+                (out/'upgrade-completed.png').write_bytes(adb('exec-out','screencap','-p',binary=True))
+                completed=True
+                for node in finished:
+                    if node.get('text','').lower() in ('done','완료'):
+                        bounds=list(map(int,re.findall(r'\d+',node.attrib['bounds'])))
+                        adb('shell','input','tap',str((bounds[0]+bounds[2])//2),str((bounds[1]+bounds[3])//2))
+                        break
+                print('Android installer completed; versionCode=1 confirmed',flush=True)
+                break
+            for node in nodes:
+                if node.get('text','').lower() in ('install','update','설치','업데이트') and node.get('clickable')=='true' and node.get('enabled')=='true':
                     bounds=list(map(int,re.findall(r'\d+',node.attrib['bounds'])))
                     (out/'upgrade-installer.png').write_bytes(adb('exec-out','screencap','-p',binary=True))
                     adb('shell','input','tap',str((bounds[0]+bounds[2])//2),str((bounds[1]+bounds[3])//2))
@@ -88,6 +112,7 @@ with tempfile.TemporaryDirectory(prefix='stellar-upgrade-') as directory:
             time.sleep(2)
         else:raise AssertionError('Android package installer did not upgrade to versionCode=1')
         assert prompted,'No system installation confirmation was observed'
+        assert completed,'The system installer must finish before relaunching the app'
         assert '/stellar-touch.json' in requests,'Update screen did not fetch metadata'
         assert '/StellarTouch-v0.1.0.apk' in requests,'DownloadManager did not fetch the APK'
     finally:
@@ -100,6 +125,7 @@ assert after['persisted_language_at_launch']=='ko',after
 assert after['persisted_region_at_launch']=='JP',after
 report={'passed':True,'previous_versionCode':0,'installed_versionCode':1,
         'metadata_detected':True,'apk_downloaded':True,'system_install_confirmed':prompted,
+        'system_install_completed':completed,
         'language_preserved':'ko','region_preserved':'JP','same_signer_required':True,
         'fixture':'x86_64 CI key and loopback HTTP; production ARM64 uses HTTPS and its separate stable release key'}
 (out/'upgrade-report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
