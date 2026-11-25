@@ -8,6 +8,7 @@ root=Path(__file__).resolve().parents[1]
 assets=root/'engine/android/assets'
 shutil.copyfile(root/'THIRD-PARTY.md',assets/'THIRD-PARTY.md')
 destination=assets/'third-party-licenses'
+shutil.copytree(root/'licenses',destination/'runtime',dirs_exist_ok=True)
 trees=[root/'engine',root/f'build-{sys.argv[1]}/_deps']
 count=0
 for tree in trees:

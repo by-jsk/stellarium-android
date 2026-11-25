@@ -123,6 +123,15 @@ endif()
     }
     setPixmap(QPixmap::fromImage(image));''')
         splash.write_text(text, encoding='utf-8', newline='\n')
+    changed=['src/CMakeLists.txt','src/main.cpp','src/gui/StelGui.cpp','src/gui/StelDialog.cpp',
+             'src/gui/SkyGui.cpp','cmake/default_cfg.ini.cmake','src/StelMainView.cpp',
+             'src/StelSplashScreen.cpp','src/core/StelLocationMgr.cpp']
+    for name in changed:
+        path=src/name
+        prefix='//' if name.endswith('.cpp') else '#'
+        notice=f'{prefix} Modified for by-jsk/Stellar Touch Android on 2026-11-25; original notices retained.\n'
+        text=path.read_text(encoding='utf-8')
+        if notice not in text:path.write_text(notice+text,encoding='utf-8',newline='\n')
     print(f'Mobile layer prepared at {src}, upstream {actual}')
 
 if __name__ == '__main__':
