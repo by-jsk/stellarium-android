@@ -192,10 +192,16 @@ void MobileShell::page(const char* title)
     scroll->setWidget(content); QScroller::grabGesture(scroll->viewport(),QScroller::TouchGesture); outer->addWidget(scroll);
     panel=new QGraphicsProxyWidget(root); panel->setWidget(frame); panel->setZValue(255); layout();
 }
-void MobileShell::addButton(const QString& label,const std::function<void()>& cb) {auto b=new QPushButton(label); b->setAccessibleName(label); connect(b,&QPushButton::clicked,this,cb); body->addWidget(b);}
+QPushButton* MobileShell::addButton(const QString& label,const std::function<void()>& cb) {auto b=new QPushButton(label); b->setAccessibleName(label); connect(b,&QPushButton::clicked,this,cb); body->addWidget(b);return b;}
 void MobileShell::addText(const QString& text) {auto l=new QLabel(text); l->setWordWrap(true); l->setTextFormat(Qt::PlainText); l->setTextInteractionFlags(Qt::TextSelectableByMouse); body->addWidget(l);}
 void MobileShell::action(const QString& id) {if(auto a=StelApp::getInstance().getStelActionManager()->findAction(id)) {if(panel)panel->hide(); a->trigger();}}
-void MobileShell::settings() {page("settings"); addButton("?  "+trm("help"),[this]{help();}); addButton("ⓘ  "+trm("about"),[this]{about();}); addButton("文  "+trm("languages"),[this]{languages();}); addButton("↻  "+trm("update"),[this]{updates();});addButton(trm("observing"),[this]{observing();});}
+void MobileShell::settings() {
+    page("settings");addButton("?  "+trm("help"),[this]{help();});addButton("ⓘ  "+trm("about"),[this]{about();});addButton("文  "+trm("languages"),[this]{languages();});
+    auto update=addButton(trm("update"),[this]{updates();});
+    QPixmap image(64,64);image.fill(Qt::transparent);
+    {QPainter painter(&image);painter.setRenderHint(QPainter::Antialiasing);painter.setPen(QPen(QColor("#eff5ff"),5,Qt::SolidLine,Qt::RoundCap,Qt::RoundJoin));painter.drawArc(QRectF(12,12,40,40),45*16,285*16);painter.drawLine(QPointF(48,10),QPointF(48,27));painter.drawLine(QPointF(48,27),QPointF(32,27));}
+    update->setIcon(QIcon(image));update->setIconSize(QSize(24,24));addButton(trm("observing"),[this]{observing();});
+}
 void MobileShell::help() {page("help"); addText(trm("guide"));}
 void MobileShell::about() {page("about");addText(QString("Stellar Touch %1").arg(STELLAR_VERSION_NAME)); addText(trm("description")); addText(trm("license")); addButton(trm("source"),[]{QDesktopServices::openUrl(QUrl("https://github.com/by-jsk/stellarium-android"));}); addButton(trm("desktopSettings"),[this]{action("actionShow_Configuration_Window_Global");});}
 void MobileShell::languages()
@@ -431,6 +437,8 @@ void MobileShell::smokeTest()
     report.insert("persisted_language_at_launch",conf->value("mobile/language").toString());
     report.insert("persisted_region_at_launch",conf->value("mobile/region").toString());
     auto objects=&StelApp::getInstance().getStelObjectMgr();
+    const auto seoul=StelApp::getInstance().getLocationMgr().locationForString("Seoul, Eastern Asia");
+    check("offline_city_catalog_available",seoul.isValid()&&qAbs(seoul.getLatitude()-37.566)<0.001&&qAbs(seoul.getLongitude()-126.9784)<0.001);
     for(const auto& name:QStringList{"Sun","Moon","Mars","Sirius","M31"}) {
         auto object=objects->searchByName(name);
         bool valid=bool(object);

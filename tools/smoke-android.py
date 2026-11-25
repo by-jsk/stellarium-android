@@ -31,7 +31,7 @@ while time.monotonic() < deadline:
             print(line,flush=True);milestones.add(line)
     if ready_seconds is None and 'STELLAR_TOUCH_READY' in logs:
         ready_seconds=round(time.monotonic()-started,2)
-    match = re.search(r'STELLAR_SMOKE_DONE (\{[^\n]*\})', logs)
+    match = re.search(r'STELLAR_SMOKE_DONE\s+(\{[^\n]*\})', logs)
     if match:
         report = json.loads(match[1]); break
     if 'Fatal signal' in logs or 'FATAL EXCEPTION' in logs:

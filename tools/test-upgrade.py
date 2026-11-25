@@ -36,7 +36,7 @@ def wait_marker(marker,seconds=150):
     while time.monotonic()<deadline:
         logs=adb('logcat','-d','-v','brief')
         (out/'upgrade-logcat.txt').write_text(logs,encoding='utf-8')
-        found=re.search(re.escape(marker)+r' (\{[^\n]*\})',logs)
+        found=re.search(re.escape(marker)+r'\s+(\{[^\n]*\})',logs)
         if found:return json.loads(found[1])
         if 'Fatal signal' in logs or 'FATAL EXCEPTION' in logs:raise AssertionError('Upgrade fixture crashed')
         time.sleep(2)

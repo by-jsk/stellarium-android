@@ -94,6 +94,10 @@ endif()
     legacy=toolbar.replace('118+qApp->property("stellarSafeTop").toInt()','118')
     if legacy in sky_gui.read_text():replace(sky_gui,legacy,toolbar)
     replace(sky_gui,'\tinfoPanel->setPos(infoX, infoY);',toolbar)
+    # Android AAPT expands .gz assets and strips that suffix in the APK.
+    replace(src/'src/core/StelLocationMgr.cpp',
+            '\tlocations = loadCitiesBin("data/base_locations.bin.gz");',
+            '#ifdef Q_OS_ANDROID\n\tlocations = loadCitiesBin("data/base_locations.bin");\n#else\n\tlocations = loadCitiesBin("data/base_locations.bin.gz");\n#endif')
     defaults = src / 'cmake' / 'default_cfg.ini.cmake'
     replace(defaults, 'minimum_fps                         = 18', 'minimum_fps                         = 2')
     replace(defaults, 'maximum_fps                         = 10000', 'maximum_fps                         = 60')

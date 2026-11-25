@@ -11,6 +11,7 @@ class QWidget;
 class QVBoxLayout;
 class QToolButton;
 class QLabel;
+class QPushButton;
 class MobileShell : public QObject
 {
 public:
@@ -40,7 +41,7 @@ private:
     void lighting();
     void smokeTest();
     void action(const QString& id);
-    void addButton(const QString& label, const std::function<void()>& callback);
+    QPushButton* addButton(const QString& label, const std::function<void()>& callback);
     void addText(const QString& text);
     QGraphicsWidget* root;
     QGraphicsProxyWidget* bar = nullptr;

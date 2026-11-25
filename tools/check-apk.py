@@ -12,6 +12,7 @@ with zipfile.ZipFile(sys.argv[1]) as apk:
         'assets/data/default_cfg.ini',
         'assets/data/ssystem_major.ini',
         'assets/data/ssystem_minor.ini',
+        'assets/data/base_locations.bin',
         'assets/stars/hip_gaia3/stars_0_0v0_21.cat',
         'assets/stars/hip_gaia3/defaultStarsConfig.json',
         'assets/skycultures/modern/index.json',
@@ -22,6 +23,9 @@ with zipfile.ZipFile(sys.argv[1]) as apk:
     }
     missing = required-files
     assert not missing, f'Incomplete engine APK: {sorted(missing)}'
+    cities=apk.read('assets/data/base_locations.bin')
+    assert 10000<struct.unpack_from('>I',cities)[0]<100000,'Offline city database must be unpacked by AAPT'
+    assert 'Seoul, Eastern Asia'.encode('utf-16be') in cities
     for lang in ('ko', 'ja', 'zh_CN', 'es', 'ru'):
         assert any(p.startswith('assets/translations/stellarium/') and p.endswith('/'+lang+'.qm') for p in files), lang
     strings = json.loads(apk.read('assets/mobile-i18n.json'))
