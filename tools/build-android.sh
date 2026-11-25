@@ -24,6 +24,7 @@ cmake --build "$BUILD" --parallel "${BUILD_JOBS:-3}"
 cmake --install "$BUILD"
 cp -a "stage/$ABI/share/stellarium/." engine/android/assets/
 cp LICENSE engine/android/assets/COPYING
+cp LICENSE-GPL-3.0.txt engine/android/assets/LICENSE-GPL-3.0.txt
 cp engine/CREDITS.md engine/android/assets/CREDITS.md
 cmake --build "$BUILD" --target apk --parallel 2
 mkdir -p release

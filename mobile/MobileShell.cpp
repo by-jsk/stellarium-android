@@ -18,6 +18,7 @@
 #include <QGeoPositionInfoSource>
 #include <QGeoPositionInfo>
 #include <QStandardPaths>
+#include <QLocationPermission>
 #ifdef Q_OS_ANDROID
 #include <QJniObject>
 #include <QCoreApplication>
@@ -193,8 +194,12 @@ void MobileShell::location()
     page("location"); auto core=StelApp::getInstance().getCore(); auto loc=core->getCurrentLocation();
     addText(trm("latitude")); auto lat=new QDoubleSpinBox;lat->setRange(-90,90);lat->setDecimals(5);lat->setValue(loc.getLatitude());lat->setAccessibleName(trm("latitude"));body->addWidget(lat);
     addText(trm("longitude")); auto lon=new QDoubleSpinBox;lon->setRange(-180,180);lon->setDecimals(5);lon->setValue(loc.getLongitude());lon->setAccessibleName(trm("longitude"));body->addWidget(lon);
-    addButton(trm("save"),[this,lat,lon,core,loc]()mutable{loc.planetName="Earth";loc.name="Stellar Touch";loc.role='X';loc.isUserLocation=true;loc.setLatitude(lat->value());loc.setLongitude(lon->value());auto& manager=StelApp::getInstance().getLocationMgr();manager.saveUserLocation(loc);core->moveObserverTo(loc,0);core->setDefaultLocationID(loc.getID());panel->hide();});
-    addButton(trm("gps"),[this,lat,lon]{auto source=QGeoPositionInfoSource::createDefaultSource(this);if(!source){addText(trm("gpsError"));return;}
+    addButton(trm("save"),[this,lat,lon,core,loc]()mutable{loc.planetName="Earth";loc.name=QString("Touch %1 %2").arg(lat->value(),0,'f',5).arg(lon->value(),0,'f',5);loc.region.clear();loc.role='X';loc.isUserLocation=true;loc.setLatitude(lat->value());loc.setLongitude(lon->value());auto& manager=StelApp::getInstance().getLocationMgr();manager.saveUserLocation(loc);core->moveObserverTo(loc,0);core->setDefaultLocationID(loc.getID());panel->hide();});
+    addButton(trm("gps"),[this,lat,lon]{
+        QLocationPermission permission; permission.setAccuracy(QLocationPermission::Precise);
+        if(qApp->checkPermission(permission)==Qt::PermissionStatus::Undetermined){qApp->requestPermission(permission,this,[this]{location();});return;}
+        if(qApp->checkPermission(permission)!=Qt::PermissionStatus::Granted){addText(trm("gpsError"));return;}
+        auto source=QGeoPositionInfoSource::createDefaultSource(this);if(!source){addText(trm("gpsError"));return;}
         QPointer<QDoubleSpinBox> latitude=lat,longitude=lon;
         connect(source,&QGeoPositionInfoSource::positionUpdated,this,[source,latitude,longitude](const QGeoPositionInfo& pos){if(latitude&&longitude){latitude->setValue(pos.coordinate().latitude());longitude->setValue(pos.coordinate().longitude());}source->deleteLater();});
         connect(source,&QGeoPositionInfoSource::errorOccurred,this,[this,source](QGeoPositionInfoSource::Error){if(currentPage=="location")addText(trm("gpsError"));source->deleteLater();});source->requestUpdate(20000);});

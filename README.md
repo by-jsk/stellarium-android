@@ -23,7 +23,7 @@ GitHub Actions가 ARM64 설치용 APK와 x86_64 에뮬레이터 검증용 APK를
 
 ## 라이선스와 배포
 
-Stellarium은 GPL-2.0-or-later입니다. GPL 조건(저작권·라이선스 유지, 변경 고지, APK에 대응하는 전체 소스 및 빌드 방법 제공)을 준수하면 수정과 배포가 허용됩니다. 단순히 PC판이 무료라는 이유로 모든 자산·상표·온라인 서비스를 자유롭게 재사용할 수 있는 것은 아닙니다. 하늘 문화·그림·사진·글꼴의 개별 조건도 유지합니다. 상용 모바일 앱의 바이너리나 유료 데이터를 복사하지 않습니다.
+Stellarium 소스는 GPL-2.0-or-later입니다. 이 빌드에 포함되는 Qt Charts의 GPLv3 조건에 맞춰 통합 APK는 GPLv3으로 배포합니다. GPL 조건(저작권·라이선스 유지, 변경 고지, APK에 대응하는 전체 소스 및 빌드 방법 제공)을 준수하면 수정과 배포가 허용됩니다. 단순히 PC판이 무료라는 이유로 모든 자산·상표·온라인 서비스를 자유롭게 재사용할 수 있는 것은 아닙니다. 하늘 문화·그림·사진·글꼴의 개별 조건도 유지합니다. 상용 모바일 앱의 바이너리나 유료 데이터를 복사하지 않습니다. 자세한 내용은 `docs/LICENSING.md`를 확인하세요.
 
 - [공식 PC 소스와 라이선스](https://github.com/Stellarium/stellarium)
 - [공식 Android 빌드 지침](https://github.com/Stellarium/stellarium/blob/master/BUILDING.md#for-android-not-officially-supported-developers-only)

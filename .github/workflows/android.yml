@@ -38,7 +38,7 @@ jobs:
       - uses: jurplel/install-qt-action@v4
         with:
           version: '6.8.3'
-          host: linux
+          host: all_os
           target: android
           arch: ${{ matrix.arch }}
           modules: 'qtcharts qtpositioning qtserialport qtmultimedia qtimageformats qtspeech'
@@ -49,7 +49,9 @@ jobs:
           key: android-ccache-${{ matrix.abi }}-${{ github.run_id }}
           restore-keys: android-ccache-${{ matrix.abi }}-
       - name: Prepare pinned PC engine
-        run: python3 tools/prepare.py --fetch
+        run: |
+          python3 tools/check-source.py
+          python3 tools/prepare.py --fetch
       - name: Build Android APK with bundled PC data
         env:
           ANDROID_ABI: ${{ matrix.abi }}
