@@ -1,0 +1,73 @@
+name: Android engine and mobile shell
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: android_arm64_v8a
+            abi: arm64-v8a
+          - arch: android_x86_64
+            abi: x86_64
+    steps:
+      - uses: actions/checkout@v4
+      - name: Host build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ninja-build ccache gettext libgl1-mesa-dev libxkbcommon-dev libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 libxcb-xinerama0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Android SDK and NDK
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'ndk;26.1.10909125'
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          host: linux
+          target: android
+          arch: ${{ matrix.arch }}
+          modules: 'qtcharts qtpositioning qtserialport qtmultimedia qtimageformats qtspeech'
+          cache: true
+      - uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: android-ccache-${{ matrix.abi }}-${{ github.run_id }}
+          restore-keys: android-ccache-${{ matrix.abi }}-
+      - name: Prepare pinned PC engine
+        run: python3 tools/prepare.py --fetch
+      - name: Build Android APK with bundled PC data
+        env:
+          ANDROID_ABI: ${{ matrix.abi }}
+        run: |
+          export QT_HOST_PATH="$(dirname "$QT_ROOT_DIR")/gcc_64"
+          export ANDROID_NDK_ROOT="$ANDROID_SDK_ROOT/ndk/26.1.10909125"
+          bash tools/build-android.sh 2>&1 | tee build.log
+      - name: Upload build evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.abi }}
+          path: |
+            release/
+            build.log
+            build-*/CMakeCache.txt
+          if-no-files-found: warn
+      - name: Save compiler cache even on failure
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .ccache
+          key: android-ccache-${{ matrix.abi }}-${{ github.run_id }}

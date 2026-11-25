@@ -1,0 +1,6 @@
+{
+  "repository": "https://github.com/Stellarium/stellarium.git",
+  "commit": "e233fa9b3d21e2cafe9c168e6710b627532a7dd4",
+  "qtVersion": "6.8.3",
+  "ndkVersion": "26.1.10909125"
+}
