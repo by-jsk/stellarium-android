@@ -34,7 +34,15 @@ while time.monotonic() < deadline:
     time.sleep(3)
 time.sleep(1)
 (out/'settings-ko.png').write_bytes(adb('exec-out', 'screencap', '-p', binary=True))
-assert report is not None, 'Native smoke report timed out; see logcat.txt'
+if report is None:
+    # The Google APIs CI emulator supports root; capture stalled native threads.
+    subprocess.run(['adb','root'],capture_output=True)
+    subprocess.run(['adb','wait-for-device'],check=True)
+    pid=adb('shell','pidof','org.byjsk.stellartouch').strip()
+    if pid:
+        stacks=subprocess.run(['adb','shell','debuggerd','-b',pid],capture_output=True,text=True)
+        (out/'native-stacks.txt').write_text(stacks.stdout+stacks.stderr,encoding='utf-8')
+    raise SystemExit('Native smoke report timed out; see logcat.txt and native-stacks.txt')
 assert report['passed'], report
 report['emulator_ready_seconds_upper_bound']=ready_seconds
 (out/'memory.txt').write_text(adb('shell','dumpsys','meminfo','org.byjsk.stellartouch'),encoding='utf-8')

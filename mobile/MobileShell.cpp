@@ -20,6 +20,8 @@
 #include <QGeoPositionInfo>
 #include <QStandardPaths>
 #include <QLocationPermission>
+#include <QInputMethod>
+#include <QTimeZone>
 #include <cmath>
 #ifdef Q_OS_ANDROID
 #include <QJniObject>
@@ -52,7 +54,8 @@ MobileShell::MobileShell(QGraphicsWidget* parent) : QObject(parent), root(parent
     lighting();
     StelMainView::getInstance().installEventFilter(this);
     connect(&StelApp::getInstance(), &StelApp::languageChanged, this, [this] { toolbar(); });
-    connect(&StelApp::getInstance(), &StelApp::visionNightModeChanged, this, [this] {lighting();toolbar();});
+    connect(&StelApp::getInstance(), &StelApp::visionNightModeChanged, this, [this] {lighting();StelApp::getInstance().getSettings()->sync();toolbar();});
+    connect(qApp,&QGuiApplication::applicationStateChanged,this,[](Qt::ApplicationState state){if(state!=Qt::ApplicationActive)StelApp::getInstance().getSettings()->sync();});
     layout();
     qInfo() << "STELLAR_TOUCH_READY";
 #ifdef Q_OS_ANDROID
@@ -200,9 +203,14 @@ void MobileShell::search()
     page("search"); auto input=new QLineEdit; input->setPlaceholderText(trm("searchHint")); input->setAccessibleName(trm("search")); body->addWidget(input);
     auto status=new QLabel; status->setWordWrap(true); body->addWidget(status);
     auto find=[this,input,status]{auto mgr=&StelApp::getInstance().getStelObjectMgr();const auto query=input->text().trimmed(); if(query.isEmpty())return;
-        if(mgr->findAndSelectI18n(query)||mgr->findAndSelect(query)){auto selected=mgr->getSelectedObject();if(!selected.isEmpty()){auto movement=StelApp::getInstance().getCore()->getMovementMgr();movement->moveToObject(selected.first());movement->setFlagTracking(true);}panel->hide();}
+        if(mgr->findAndSelectI18n(query)||mgr->findAndSelect(query)){auto selected=mgr->getSelectedObject();if(!selected.isEmpty()){auto movement=StelApp::getInstance().getCore()->getMovementMgr();movement->moveToObject(selected.first());movement->setFlagTracking(true);}panel->hide();QGuiApplication::inputMethod()->hide();}
         else status->setText(trm("notFound"));};
     addButton(trm("search"),find); connect(input,&QLineEdit::returnPressed,this,find);
+    auto matches=new QListWidget;matches->setUniformItemSizes(true);matches->setMinimumHeight(160);matches->setAccessibleName(trm("search"));matches->setStyleSheet("QListWidget::item{min-height:44px;}");body->addWidget(matches);
+    auto debounce=new QTimer(input);debounce->setSingleShot(true);debounce->setInterval(150);
+    connect(input,&QLineEdit::textEdited,debounce,[debounce]{debounce->start();});
+    connect(debounce,&QTimer::timeout,matches,[input,matches]{matches->clear();const auto query=input->text().trimmed();if(query.size()<2)return;for(const auto& match:StelApp::getInstance().getStelObjectMgr().listMatchingObjects(query,8))matches->addItem(match.first);});
+    connect(matches,&QListWidget::itemClicked,this,[input,find](QListWidgetItem* item){input->setText(item->text());find();});
     addButton(trm("advanced"),[this]{action("actionShow_Search_Window_Global");});
 }
 void MobileShell::time()
@@ -216,18 +224,56 @@ void MobileShell::time()
 }
 void MobileShell::location()
 {
-    page("location"); auto core=StelApp::getInstance().getCore(); auto loc=core->getCurrentLocation();
-    addText(trm("latitude")); auto lat=new QDoubleSpinBox;lat->setRange(-90,90);lat->setDecimals(5);lat->setValue(loc.getLatitude());lat->setAccessibleName(trm("latitude"));body->addWidget(lat);
-    addText(trm("longitude")); auto lon=new QDoubleSpinBox;lon->setRange(-180,180);lon->setDecimals(5);lon->setValue(loc.getLongitude());lon->setAccessibleName(trm("longitude"));body->addWidget(lon);
-    addButton(trm("save"),[this,lat,lon,core,loc]()mutable{loc.planetName="Earth";loc.name=QString("Touch %1 %2").arg(lat->value(),0,'f',5).arg(lon->value(),0,'f',5);loc.region.clear();loc.role='X';loc.isUserLocation=true;loc.setLatitude(lat->value());loc.setLongitude(lon->value());auto& manager=StelApp::getInstance().getLocationMgr();manager.saveUserLocation(loc);core->moveObserverTo(loc,0);core->setDefaultLocationID(loc.getID());panel->hide();});
-    addButton(trm("gps"),[this,lat,lon]{
-        QLocationPermission permission; permission.setAccuracy(QLocationPermission::Precise);
-        if(qApp->checkPermission(permission)==Qt::PermissionStatus::Undetermined){qApp->requestPermission(permission,this,[this]{location();});return;}
-        if(qApp->checkPermission(permission)!=Qt::PermissionStatus::Granted){addText(trm("gpsError"));return;}
-        auto source=QGeoPositionInfoSource::createDefaultSource(this);if(!source){addText(trm("gpsError"));return;}
-        QPointer<QDoubleSpinBox> latitude=lat,longitude=lon;
-        connect(source,&QGeoPositionInfoSource::positionUpdated,this,[source,latitude,longitude](const QGeoPositionInfo& pos){if(latitude&&longitude){latitude->setValue(pos.coordinate().latitude());longitude->setValue(pos.coordinate().longitude());}source->deleteLater();});
-        connect(source,&QGeoPositionInfoSource::errorOccurred,this,[this,source](QGeoPositionInfoSource::Error){if(currentPage=="location")addText(trm("gpsError"));source->deleteLater();});source->requestUpdate(20000);});
+    page("location");
+    auto core=StelApp::getInstance().getCore();
+    const auto current=core->getCurrentLocation();
+    auto lat=new QDoubleSpinBox;lat->setRange(-90,90);lat->setDecimals(5);lat->setValue(current.getLatitude());lat->setAccessibleName(trm("latitude"));
+    auto lon=new QDoubleSpinBox;lon->setRange(-180,180);lon->setDecimals(5);lon->setValue(current.getLongitude());lon->setAccessibleName(trm("longitude"));
+    auto altitude=new QSpinBox;altitude->setRange(-1000,100000);altitude->setValue(current.altitude);altitude->setAccessibleName(trm("altitude"));
+    auto zone=new QComboBox;zone->setAccessibleName(trm("timezone"));
+    for(const auto& id:QTimeZone::availableTimeZoneIds())zone->addItem(QString::fromUtf8(id),QString::fromUtf8(id));
+    int selected=zone->findData(core->getCurrentTimeZone());
+    if(selected<0)selected=zone->findData(QString::fromUtf8(QTimeZone::systemTimeZoneId()));
+    zone->setCurrentIndex(qMax(0,selected));
+    QPointer<QDoubleSpinBox> latitude=lat,longitude=lon;
+    QPointer<QSpinBox> elevation=altitude;
+    QPointer<QComboBox> timezone=zone;
+    auto locate=[this,latitude,longitude,elevation,timezone]{
+        if(!latitude||!longitude||!elevation||!timezone)return;
+        auto source=QGeoPositionInfoSource::createDefaultSource(this);
+        if(!source){addText(trm("gpsError"));return;}
+        connect(source,&QGeoPositionInfoSource::positionUpdated,this,[source,latitude,longitude,elevation,timezone](const QGeoPositionInfo& pos){
+            if(latitude&&longitude&&elevation&&timezone){
+                latitude->setValue(pos.coordinate().latitude());longitude->setValue(pos.coordinate().longitude());
+                if(std::isfinite(pos.coordinate().altitude()))elevation->setValue(qRound(pos.coordinate().altitude()));
+                const auto index=timezone->findData(QString::fromUtf8(QTimeZone::systemTimeZoneId()));if(index>=0)timezone->setCurrentIndex(index);
+            }
+            source->deleteLater();
+        });
+        auto failed=[this,source]{if(currentPage=="location")addText(trm("gpsError"));source->deleteLater();};
+        connect(source,&QGeoPositionInfoSource::errorOccurred,this,[failed](QGeoPositionInfoSource::Error){failed();});
+        source->requestUpdate(20000);
+    };
+    addButton(trm("gps"),[this,locate]{
+        QLocationPermission permission;permission.setAccuracy(QLocationPermission::Precise);
+        if(qApp->checkPermission(permission)==Qt::PermissionStatus::Undetermined){
+            qApp->requestPermission(permission,this,[this,locate](const QPermission& result){if(result.status()==Qt::PermissionStatus::Granted)locate();else if(currentPage=="location")addText(trm("gpsError"));});return;
+        }
+        if(qApp->checkPermission(permission)==Qt::PermissionStatus::Granted)locate();else addText(trm("gpsError"));
+    });
+    addText(trm("latitude"));body->addWidget(lat);
+    addText(trm("longitude"));body->addWidget(lon);
+    addText(trm("altitude"));body->addWidget(altitude);
+    addText(trm("timezone"));body->addWidget(zone);
+    addButton(trm("save"),[this,lat,lon,altitude,zone,core,current]()mutable{
+        auto loc=current;loc.planetName="Earth";loc.name=QString("Touch %1 %2").arg(lat->value(),0,'f',5).arg(lon->value(),0,'f',5);
+        loc.region.clear();loc.role='X';loc.isUserLocation=true;loc.setLatitude(lat->value());loc.setLongitude(lon->value());loc.altitude=altitude->value();loc.ianaTimeZone=zone->currentData().toString();
+        auto& manager=StelApp::getInstance().getLocationMgr();
+        if(manager.canDeleteUserLocation(loc.getID()))manager.deleteUserLocation(loc.getID());
+        if(!manager.saveUserLocation(loc)){addText(trm("saveError"));return;}
+        core->setUseCustomTimeZone(false);core->moveObserverTo(loc,0);core->setCurrentTimeZone(loc.ianaTimeZone);core->setDefaultLocationID(loc.getID());
+        auto conf=StelApp::getInstance().getSettings();conf->remove("localization/time_zone");conf->sync();panel->hide();QGuiApplication::inputMethod()->hide();
+    });
     addButton(trm("advanced"),[this]{action("actionShow_Location_Window_Global");});
 }
 void MobileShell::lighting()
@@ -248,7 +294,8 @@ void MobileShell::observing()
     addText(trm("nightBrightness"));auto brightness=new QSlider(Qt::Horizontal);brightness->setRange(5,100);brightness->setValue(conf->value("mobile/nightBrightness",40).toInt());brightness->setAccessibleName(trm("nightBrightness"));brightness->setMinimumHeight(48);body->addWidget(brightness);
     connect(brightness,&QSlider::valueChanged,this,[this,conf](int value){conf->setValue("mobile/nightBrightness",value);lighting();});connect(brightness,&QSlider::sliderReleased,conf,&QSettings::sync);
     auto awake=new QCheckBox(trm("keepAwake"));awake->setChecked(conf->value("mobile/keepAwake",true).toBool());awake->setMinimumHeight(48);body->addWidget(awake);connect(awake,&QCheckBox::toggled,this,[this,conf](bool value){conf->setValue("mobile/keepAwake",value);lighting();});
-    addText(trm("performance"));addButton(trm("smooth"),[]{auto& view=StelMainView::getInstance();view.setMinFps(2);view.setMaxFps(60);});addButton(trm("battery"),[]{auto& view=StelMainView::getInstance();view.setMinFps(1);view.setMaxFps(30);});
+    auto rate=[conf](int minimum,int maximum){auto& view=StelMainView::getInstance();view.setMinFps(minimum);view.setMaxFps(maximum);conf->setValue("video/minimum_fps",minimum);conf->setValue("video/maximum_fps",maximum);conf->sync();};
+    addText(trm("performance"));addButton(trm("smooth"),[rate]{rate(2,60);});addButton(trm("battery"),[rate]{rate(1,30);});
 }
 void MobileShell::tools()
 {
@@ -328,5 +375,6 @@ void MobileShell::smokeTest()
     check("red_brightness_controlled",qApp->property("stellarNightBrightness").toDouble()>0&&qApp->property("stellarNightBrightness").toDouble()<=1);
     settings();
     report.insert("passed",passed);report.insert("versionCode",STELLAR_VERSION_CODE);report.insert("actions",StelApp::getInstance().getStelActionManager()->getActionList().size());
+    report.insert("emulator_observed_fps",double(StelApp::getInstance().getFps()));
     qInfo().noquote()<<"STELLAR_SMOKE_DONE "<<QJsonDocument(report).toJson(QJsonDocument::Compact);
 }

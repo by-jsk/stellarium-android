@@ -57,8 +57,10 @@ public class StellarActivity extends QtActivity {
     }
 
     @Override public void onCreate(Bundle saved) {
+        android.util.Log.i("StellarTouch", "STELLAR_BOOT Activity create");
         super.onCreate(saved);
         state = getSharedPreferences("updates", MODE_PRIVATE);
+        android.util.Log.i("StellarTouch", "STELLAR_BOOT Activity created");
     }
 
     /** Called only after the user taps the localized install button. */

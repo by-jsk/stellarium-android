@@ -9,11 +9,13 @@ ABI=${ANDROID_ABI:-arm64-v8a}
 BUILD="build-$ABI"
 export CCACHE_BASEDIR="$PWD/engine"
 export CCACHE_DIR="$PWD/.ccache/$ABI"
+export CCACHE_SLOPPINESS=pch_defines,time_macros
 cmake -S engine -B "$BUILD" -GNinja \
   -DCMAKE_TOOLCHAIN_FILE="$QT_ROOT_DIR/lib/cmake/Qt6/qt.toolchain.cmake" \
   -DQT_HOST_PATH="$QT_HOST_PATH" -DANDROID_SDK_ROOT="$ANDROID_SDK_ROOT" \
   -DANDROID_NDK_ROOT="$ANDROID_NDK_ROOT" -DANDROID_ABI="$ABI" \
   -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PWD/stage/$ABI" \
+  -DQT_NO_GLOBAL_APK_TARGET_PART_OF_ALL=ON \
   -DQt6LinguistTools_DIR="$QT_HOST_PATH/lib/cmake/Qt6LinguistTools" \
   -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache \
   -DSTELLARIUM_RELEASE_BUILD=0 -DENABLE_TESTING=OFF -DENABLE_SHOWMYSKY=OFF \
@@ -30,4 +32,5 @@ cmake --build "$BUILD" --target apk --parallel 2
 mkdir -p release
 find "$BUILD" -name '*release-unsigned.apk' -exec cp '{}' "release/StellarTouch-$ABI-unsigned.apk" \;
 test -f "release/StellarTouch-$ABI-unsigned.apk"
+python3 tools/check-apk.py "release/StellarTouch-$ABI-unsigned.apk" "$ABI"
 ccache --show-stats

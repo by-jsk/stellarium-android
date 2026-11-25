@@ -3,6 +3,7 @@
 from pathlib import Path
 import json
 import tarfile
+import hashlib
 
 root = Path(__file__).resolve().parents[1]
 version = json.loads((root/'version.json').read_text())
@@ -31,3 +32,14 @@ with tarfile.open(destination,'w:gz',compresslevel=5) as archive:
                 if path.is_file() and '.git' not in path.parts:
                     archive.add(path,arcname='StellarTouch/dependency-sources/'+directory.name+'/'+str(path.relative_to(directory)),recursive=False)
 print(destination)
+parts=destination.parent/'source-parts'
+parts.mkdir(exist_ok=True)
+with destination.open('rb') as stream:
+    number=0
+    while True:
+        data=stream.read(400*1024*1024)
+        if not data: break
+        part=parts/(destination.name+f'.part-{number:02d}')
+        part.write_bytes(data)
+        print(part.name,len(data),hashlib.sha256(data).hexdigest())
+        number+=1

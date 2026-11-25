@@ -62,6 +62,10 @@ endif()
     # Keep data inside the package. Broad shared-storage access is unnecessary.
     main_cpp = src / 'src' / 'main.cpp'
     replace(main_cpp, '#include <QtCore/private/qjnihelpers_p.h>', '#include "mobile/MobileShell.hpp"')
+    replace(main_cpp, 'int main(int argc, char **argv)\n{', 'int main(int argc, char **argv)\n{\n\tqWarning("STELLAR_BOOT main");')
+    replace(main_cpp, '\tStelApplication app(argc, argv);', '\tqWarning("STELLAR_BOOT before QApplication");\n\tStelApplication app(argc, argv);\n\tqWarning("STELLAR_BOOT QApplication ready");')
+    replace(main_cpp, '\tsetlocale(LC_NUMERIC, "C");', '\tqWarning("STELLAR_BOOT font ready");\n\tsetlocale(LC_NUMERIC, "C");')
+    replace(main_cpp, '\tStelFileMgr::init();', '\tqWarning("STELLAR_BOOT before files");\n\tStelFileMgr::init();\n\tqWarning("STELLAR_BOOT files ready");')
     text = main_cpp.read_text()
     start = text.index('#ifdef Q_OS_ANDROID\n\tif (!QJniObject::callStaticMethod') if '#ifdef Q_OS_ANDROID\n\tif (!QJniObject::callStaticMethod' in text else -1
     if start >= 0:

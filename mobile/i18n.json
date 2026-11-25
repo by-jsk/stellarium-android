@@ -44,7 +44,10 @@
     "keepAwake": "Keep screen awake",
     "performance": "Rendering speed",
     "smooth": "Smooth · 60 fps",
-    "battery": "Battery saver · 30 fps"
+    "battery": "Battery saver · 30 fps",
+    "altitude": "Altitude (m)",
+    "timezone": "Time zone",
+    "saveError": "Could not save this location. Please try again."
   },
   "ko": {
     "title": "별하늘",
@@ -91,7 +94,10 @@
     "keepAwake": "화면 꺼짐 방지",
     "performance": "화면 속도",
     "smooth": "부드럽게 · 60 fps",
-    "battery": "절전 · 30 fps"
+    "battery": "절전 · 30 fps",
+    "altitude": "해발고도 (m)",
+    "timezone": "시간대",
+    "saveError": "위치를 저장하지 못했습니다. 다시 시도하세요."
   },
   "ja": {
     "title": "Stellar Touch",
@@ -138,7 +144,10 @@
     "keepAwake": "画面を点灯したままにする",
     "performance": "描画速度",
     "smooth": "滑らか · 60 fps",
-    "battery": "省電力 · 30 fps"
+    "battery": "省電力 · 30 fps",
+    "altitude": "標高 (m)",
+    "timezone": "時間帯",
+    "saveError": "場所を保存できませんでした。再試行してください。"
   },
   "zh": {
     "title": "Stellar Touch",
@@ -185,7 +194,10 @@
     "keepAwake": "保持屏幕常亮",
     "performance": "渲染速度",
     "smooth": "流畅 · 60 fps",
-    "battery": "省电 · 30 fps"
+    "battery": "省电 · 30 fps",
+    "altitude": "海拔高度 (米)",
+    "timezone": "时区",
+    "saveError": "无法保存此位置。请重试。"
   },
   "es": {
     "title": "Stellar Touch",
@@ -232,7 +244,10 @@
     "keepAwake": "Mantener la pantalla encendida",
     "performance": "Velocidad de dibujo",
     "smooth": "Fluido · 60 fps",
-    "battery": "Ahorro · 30 fps"
+    "battery": "Ahorro · 30 fps",
+    "altitude": "Altitud (m)",
+    "timezone": "Zona horaria",
+    "saveError": "No se pudo guardar el lugar. Inténtelo de nuevo."
   },
   "ru": {
     "title": "Stellar Touch",
@@ -279,6 +294,9 @@
     "keepAwake": "Не выключать экран",
     "performance": "Скорость отрисовки",
     "smooth": "Плавно · 60 кадр/с",
-    "battery": "Экономия · 30 кадр/с"
+    "battery": "Экономия · 30 кадр/с",
+    "altitude": "Высота (м)",
+    "timezone": "Часовой пояс",
+    "saveError": "Не удалось сохранить место. Повторите попытку."
   }
 }
