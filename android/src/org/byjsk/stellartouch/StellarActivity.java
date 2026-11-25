@@ -26,6 +26,8 @@ public class StellarActivity extends QtActivity {
     private SharedPreferences state;
     private boolean polling;
 
+    public boolean isSmokeTest() { return getIntent().getBooleanExtra("stellarSmokeTest", false); }
+
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
         state = getSharedPreferences("updates", MODE_PRIVATE);

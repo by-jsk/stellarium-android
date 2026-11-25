@@ -39,6 +39,7 @@ def main():
         f'#define STELLAR_VERSION_NAME "{version["versionName"]}"\n', encoding='utf-8')
     manifest = src / 'android' / 'AndroidManifest.xml'
     manifest.write_text(manifest.read_text().replace('@VERSION_CODE@', str(version['versionCode'])).replace('@VERSION_NAME@', version['versionName']), encoding='utf-8')
+    (src / 'android' / 'assets').mkdir(parents=True, exist_ok=True)
     shutil.copy(ROOT / 'mobile' / 'i18n.json', src / 'android' / 'assets' / 'mobile-i18n.json')
     replace(src / 'src' / 'CMakeLists.txt', 'SET(stellarium_exe_SRCS main.cpp)',
             'list(APPEND stellarium_lib_SRCS mobile/MobileShell.cpp mobile/MobileShell.hpp)\nSET(stellarium_exe_SRCS main.cpp)')

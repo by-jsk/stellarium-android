@@ -34,6 +34,7 @@ private:
     void tools();
     void updates();
     void applyLanguage();
+    void smokeTest();
     void action(const QString& id);
     void addButton(const QString& label, const std::function<void()>& callback);
     void addText(const QString& text);

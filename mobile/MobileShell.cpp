@@ -8,6 +8,7 @@
 #include "StelLocaleMgr.hpp"
 #include "StelActionMgr.hpp"
 #include "StelObjectMgr.hpp"
+#include "StelObject.hpp"
 #include "StelMovementMgr.hpp"
 #include "StelLocation.hpp"
 #include "StelLocationMgr.hpp"
@@ -43,6 +44,10 @@ MobileShell::MobileShell(QGraphicsWidget* parent) : QObject(parent), root(parent
     connect(&StelApp::getInstance(), &StelApp::languageChanged, this, [this] { toolbar(); });
     layout();
     qInfo() << "STELLAR_TOUCH_READY";
+#ifdef Q_OS_ANDROID
+    if(QNativeInterface::QAndroidApplication::context().callMethod<jboolean>("isSmokeTest"))
+        QTimer::singleShot(10000,this,[this]{smokeTest();});
+#endif
 }
 
 QString MobileShell::trm(const char* key) const
@@ -233,4 +238,37 @@ void MobileShell::updates()
 #endif
         });
     });
+}
+
+void MobileShell::smokeTest()
+{
+    QJsonObject report;
+    bool passed=true;
+    auto check=[&](const QString& name,bool value){report.insert(name,value);passed=passed&&value;};
+    auto conf=StelApp::getInstance().getSettings();
+    auto objects=StelApp::getInstance().getStelObjectMgr();
+    for(const auto& name:QStringList{"Sun","Moon","Mars","Sirius","M31"}) {
+        auto object=objects->searchByName(name);
+        bool valid=bool(object);
+        if(object){const auto pos=object->getJ2000EquatorialPos(StelApp::getInstance().getCore());valid=std::isfinite(pos[0])&&std::isfinite(pos[1])&&std::isfinite(pos[2])&&pos.norm()>0;}
+        check("catalog_"+name,valid);
+    }
+    for(const auto& lang:QStringList{"ko","en","ja","zh","es","ru"}) {
+        conf->setValue("mobile/language",lang);applyLanguage();
+        check("language_"+lang,language==lang && !trm("guide").isEmpty() && trm("settings")!="settings");
+        settings();auto buttons=content->findChildren<QPushButton*>();
+        check("settings_order_"+lang,buttons.size()==4&&buttons[0]->text().contains(trm("help"))&&buttons[1]->text().contains(trm("about"))&&buttons[2]->text().contains(trm("languages"))&&buttons[3]->text().contains(trm("update")));
+    }
+    conf->setValue("mobile/language","unsupported");applyLanguage();check("unsupported_language_falls_back_to_english",language=="en");
+    conf->setValue("mobile/language","ko");conf->setValue("mobile/region","JP");applyLanguage();conf->sync();
+    QSettings saved(conf->fileName(),QSettings::IniFormat);
+    check("independent_persisted_language_region",saved.value("mobile/language")=="ko"&&saved.value("mobile/region")=="JP");
+    auto toggle=StelApp::getInstance().getStelActionManager()->findAction("actionShow_Constellation_Lines");
+    bool toggled=false;if(toggle&&toggle->isCheckable()){const auto before=toggle->isChecked();toggle->trigger();toggled=toggle->isChecked()!=before;toggle->setChecked(before);}check("native_action_toggles_engine",toggled);
+    const auto oldJD=StelApp::getInstance().getCore()->getJD();StelApp::getInstance().getCore()->setJD(2451545.0);
+    check("time_sets_j2000",qAbs(StelApp::getInstance().getCore()->getJD()-2451545.0)<1e-8);StelApp::getInstance().getCore()->setJD(oldJD);
+    check("all_action_catalog_available",StelApp::getInstance().getStelActionManager()->getActionList().size()>50);
+    settings();
+    report.insert("passed",passed);report.insert("versionCode",STELLAR_VERSION_CODE);report.insert("actions",StelApp::getInstance().getStelActionManager()->getActionList().size());
+    qInfo().noquote()<<"STELLAR_SMOKE_DONE "<<QJsonDocument(report).toJson(QJsonDocument::Compact);
 }
