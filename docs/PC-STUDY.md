@@ -16,7 +16,7 @@
 
 AngleMeasure, ArchaeoLines, Calendars, EquationOfTime, Exoplanets, LensDistortionEstimator, MeteorShowers, MosaicCamera, NavStars, NebulaTextures, Novae, ObjectVisibility, Observability, Oculars, OnlineQueries, Planes, PointerCoordinates, Pulsars, Quasars, RemoteControl, RemoteSync, Satellites, Scenery3d, SkyCultureMaker, SolarSystemEditor, Supernovae, TelescopeControl, TextUserInterface, TimeNavigator.
 
-빌드에 포함되는 것과 시작할 때 로드되는 것은 다릅니다. 원본의 기본 로드 설정을 따르며, 추가 플러그인은 상세 설정에서 선택합니다. 빌드 성공만으로 실제 망원경·외부 서버·모든 플러그인의 현장 동작 검증을 대신하지 않습니다.
+빌드에 포함되는 것과 시작할 때 로드되는 것은 다릅니다. 큰 초기 데이터 처리가 필요한 Satellites와 SolarSystemEditor는 자동 로드를 기본으로 끄며, **도구 → 플러그인**에서 필요할 때 바로 불러와 설정을 엽니다. 모든 기본 플러그인의 설치 소스는 유지합니다. 빌드 성공만으로 실제 망원경·외부 서버·모든 플러그인의 현장 동작 검증을 대신하지 않습니다.
 
 ## Android에서 그대로 제공할 수 없는 항목
 

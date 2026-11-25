@@ -47,7 +47,12 @@
     "battery": "Battery saver · 30 fps",
     "altitude": "Altitude (m)",
     "timezone": "Time zone",
-    "saveError": "Could not save this location. Please try again."
+    "saveError": "Could not save this location. Please try again.",
+    "plugins": "Plugins",
+    "pluginsHint": "Tap a plugin to load it now and open its settings. Heavy plugins load only when needed for faster startup.",
+    "loading": "Loading…",
+    "pluginError": "The plugin could not start. See advanced settings.",
+    "locationHint": "The initial example location is Seoul. Before observing, choose your actual coordinates, altitude and time zone, or use GPS."
   },
   "ko": {
     "title": "별하늘",
@@ -97,7 +102,12 @@
     "battery": "절전 · 30 fps",
     "altitude": "해발고도 (m)",
     "timezone": "시간대",
-    "saveError": "위치를 저장하지 못했습니다. 다시 시도하세요."
+    "saveError": "위치를 저장하지 못했습니다. 다시 시도하세요.",
+    "plugins": "플러그인",
+    "pluginsHint": "플러그인을 누르면 바로 불러오고 설정을 엽니다. 시작 속도를 위해 무거운 기능은 필요할 때 불러옵니다.",
+    "loading": "불러오는 중…",
+    "pluginError": "플러그인을 시작하지 못했습니다. 상세 설정을 확인하세요.",
+    "locationHint": "처음 예시 위치는 서울입니다. 관측 전에 실제 좌표·고도·시간대를 설정하거나 GPS를 사용하세요."
   },
   "ja": {
     "title": "Stellar Touch",
@@ -147,7 +157,12 @@
     "battery": "省電力 · 30 fps",
     "altitude": "標高 (m)",
     "timezone": "時間帯",
-    "saveError": "場所を保存できませんでした。再試行してください。"
+    "saveError": "場所を保存できませんでした。再試行してください。",
+    "plugins": "プラグイン",
+    "pluginsHint": "項目をタップすると読み込んで設定を開きます。起動を速くするため重い機能は必要なときに読み込みます。",
+    "loading": "読み込み中…",
+    "pluginError": "プラグインを開始できません。詳細設定を確認してください。",
+    "locationHint": "初期の例示地点はソウルです。観測前に実際の座標・標高・時間帯を設定するか、GPSを使用してください。"
   },
   "zh": {
     "title": "Stellar Touch",
@@ -197,7 +212,12 @@
     "battery": "省电 · 30 fps",
     "altitude": "海拔高度 (米)",
     "timezone": "时区",
-    "saveError": "无法保存此位置。请重试。"
+    "saveError": "无法保存此位置。请重试。",
+    "plugins": "插件",
+    "pluginsHint": "点击插件即可加载并打开设置。为加快启动，较大的功能仅在需要时加载。",
+    "loading": "正在加载…",
+    "pluginError": "无法启动插件。请查看高级设置。",
+    "locationHint": "初始示例地点为首尔。观测前请设置实际坐标、海拔和时区，或使用 GPS。"
   },
   "es": {
     "title": "Stellar Touch",
@@ -247,7 +267,12 @@
     "battery": "Ahorro · 30 fps",
     "altitude": "Altitud (m)",
     "timezone": "Zona horaria",
-    "saveError": "No se pudo guardar el lugar. Inténtelo de nuevo."
+    "saveError": "No se pudo guardar el lugar. Inténtelo de nuevo.",
+    "plugins": "Complementos",
+    "pluginsHint": "Toca un complemento para cargarlo y abrir sus ajustes. Las funciones pesadas se cargan cuando se necesitan para acelerar el inicio.",
+    "loading": "Cargando…",
+    "pluginError": "No se pudo iniciar el complemento. Consulta los ajustes avanzados.",
+    "locationHint": "La ubicación inicial de ejemplo es Seúl. Antes de observar, establece tus coordenadas, altitud y zona horaria reales, o usa el GPS."
   },
   "ru": {
     "title": "Stellar Touch",
@@ -297,6 +322,11 @@
     "battery": "Экономия · 30 кадр/с",
     "altitude": "Высота (м)",
     "timezone": "Часовой пояс",
-    "saveError": "Не удалось сохранить место. Повторите попытку."
+    "saveError": "Не удалось сохранить место. Повторите попытку.",
+    "plugins": "Плагины",
+    "pluginsHint": "Нажмите на плагин, чтобы загрузить его и открыть настройки. Для быстрого запуска тяжёлые функции загружаются по запросу.",
+    "loading": "Загрузка…",
+    "pluginError": "Не удалось запустить плагин. Проверьте расширенные настройки.",
+    "locationHint": "Начальное место для примера — Сеул. Перед наблюдением задайте реальные координаты, высоту и часовой пояс или используйте GPS."
   }
 }

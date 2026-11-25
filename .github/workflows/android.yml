@@ -33,6 +33,7 @@ jobs:
       - uses: android-actions/setup-android@v3
         with:
           packages: platform-tools
+      - uses: gradle/actions/setup-gradle@v4
       - name: Android SDK and NDK
         run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'ndk;26.1.10909125'
       - uses: jurplel/install-qt-action@v4
@@ -49,6 +50,8 @@ jobs:
           key: android-ccache-${{ matrix.abi }}-${{ github.run_id }}
           restore-keys: android-ccache-${{ matrix.abi }}-
       - name: Prepare pinned PC engine
+        env:
+          STELLAR_CI_FIXTURE: ${{ matrix.abi == 'x86_64' && '1' || '0' }}
         run: |
           python3 tools/check-source.py
           python3 tools/prepare.py --fetch
@@ -74,7 +77,9 @@ jobs:
         if: matrix.abi == 'x86_64'
         run: |
           keytool -genkeypair -keystore "$RUNNER_TEMP/emulator-test.jks" -storepass android -keypass android -alias test -keyalg RSA -validity 30 -dname 'CN=Ephemeral emulator test'
-          "$ANDROID_SDK_ROOT/build-tools/35.0.0/apksigner" sign --ks "$RUNNER_TEMP/emulator-test.jks" --ks-pass pass:android --out release/StellarTouch-x86_64-test.apk release/StellarTouch-x86_64-unsigned.apk
+          "$ANDROID_SDK_ROOT/build-tools/35.0.0/apksigner" sign --ks "$RUNNER_TEMP/emulator-test.jks" --ks-pass pass:android --v4-signing-enabled false --out release/StellarTouch-x86_64-test.apk release/StellarTouch-x86_64-unsigned.apk
+          python3 tools/fixture-apk.py release/StellarTouch-x86_64-unsigned.apk release/previous-unsigned.apk
+          "$ANDROID_SDK_ROOT/build-tools/35.0.0/apksigner" sign --ks "$RUNNER_TEMP/emulator-test.jks" --ks-pass pass:android --v4-signing-enabled false --out release/previous-test.apk release/previous-unsigned.apk
           python3 -m pip install pillow
       - uses: reactivecircus/android-emulator-runner@v2
         if: matrix.abi == 'x86_64'
@@ -83,9 +88,11 @@ jobs:
           arch: x86_64
           target: google_apis
           profile: pixel_6
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none
+          emulator-options: -no-window -memory 3072 -partition-size 4096 -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none
           disable-animations: true
-          script: python3 tools/smoke-android.py release/StellarTouch-x86_64-test.apk
+          script: |
+            python3 tools/smoke-android.py release/StellarTouch-x86_64-test.apk
+            python3 tools/test-upgrade.py release/StellarTouch-x86_64-test.apk release/previous-test.apk
       - name: Upload build evidence
         if: always()
         uses: actions/upload-artifact@v4

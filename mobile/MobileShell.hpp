@@ -32,6 +32,8 @@ private:
     void time();
     void location();
     void tools();
+    void plugins();
+    bool loadPlugin(const QString& id);
     void updates();
     void applyLanguage();
     void observing();

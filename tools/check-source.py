@@ -17,4 +17,7 @@ permissions = {p.attrib[ns+'name'] for p in manifest.findall('uses-permission')}
 assert not any('EXTERNAL_STORAGE' in p for p in permissions)
 assert manifest.attrib['package'] == json.loads((root/'version.json').read_text())['packageId']
 assert 'android.permission.REQUEST_INSTALL_PACKAGES' in permissions
+assert manifest.find('application').attrib[ns+'usesCleartextTraffic']=='false'
+java=(root/'android/src/org/byjsk/stellartouch/StellarActivity.java').read_text(encoding='utf-8')
+assert 'private static final boolean CI_FIXTURE = false;' in java
 print('Six complete mobile languages, eight-step guides, package identity and minimal permissions: PASS')

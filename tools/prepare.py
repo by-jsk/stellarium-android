@@ -2,6 +2,7 @@
 """Reproducibly apply the mobile layer to an exact upstream commit (GPL-2.0-or-later)."""
 import argparse
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -36,9 +37,14 @@ def main():
     version = json.loads((ROOT / 'version.json').read_text())
     (src / 'src' / 'mobile' / 'MobileVersion.hpp').write_text(
         f'#pragma once\n#define STELLAR_VERSION_CODE {version["versionCode"]}\n'
-        f'#define STELLAR_VERSION_NAME "{version["versionName"]}"\n', encoding='utf-8')
+        f'#define STELLAR_VERSION_NAME "{version["versionName"]}"\n'
+        + ('#define STELLAR_CI_FIXTURE\n' if os.getenv('STELLAR_CI_FIXTURE') == '1' else ''), encoding='utf-8')
     manifest = src / 'android' / 'AndroidManifest.xml'
     manifest.write_text(manifest.read_text().replace('@VERSION_CODE@', str(version['versionCode'])).replace('@VERSION_NAME@', version['versionName']), encoding='utf-8')
+    if os.getenv('STELLAR_CI_FIXTURE') == '1':
+        manifest.write_text(manifest.read_text().replace('android:usesCleartextTraffic="false"', 'android:usesCleartextTraffic="true"'), encoding='utf-8')
+        activity=src/'android/src/org/byjsk/stellartouch/StellarActivity.java'
+        activity.write_text(activity.read_text().replace('CI_FIXTURE = false', 'CI_FIXTURE = true'), encoding='utf-8')
     (src / 'android' / 'assets').mkdir(parents=True, exist_ok=True)
     shutil.copy(ROOT / 'mobile' / 'i18n.json', src / 'android' / 'assets' / 'mobile-i18n.json')
     replace(src / 'src' / 'CMakeLists.txt', 'SET(stellarium_exe_SRCS main.cpp)',
@@ -84,6 +90,9 @@ endif()
     replace(defaults, 'minimum_fps                         = 18', 'minimum_fps                         = 2')
     replace(defaults, 'maximum_fps                         = 10000', 'maximum_fps                         = 60')
     replace(defaults, 'flag_night                          = false', 'flag_night                          = true')
+    replace(defaults, 'location                            = auto', 'location                            = Seoul, Eastern Asia')
+    replace(defaults, 'Satellites                          = true', 'Satellites                          = false')
+    replace(defaults, 'SolarSystemEditor                   = true', 'SolarSystemEditor                   = false')
     view = src / 'src' / 'StelMainView.cpp'
     replace(view, '"uniform sampler2D  u_source;\\n"', '"uniform sampler2D  u_source;\\n"\n\t\t\t\t"uniform mediump float u_nightBrightness;\\n"')
     replace(view, 'vec4(luminance, luminance * 0.3, 0.0, 1.0)', 'vec4(luminance * u_nightBrightness, 0.0, 0.0, 1.0)')

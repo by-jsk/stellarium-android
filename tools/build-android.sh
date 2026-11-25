@@ -28,7 +28,14 @@ cp -a "stage/$ABI/share/stellarium/." engine/android/assets/
 cp LICENSE engine/android/assets/COPYING
 cp LICENSE-GPL-3.0.txt engine/android/assets/LICENSE-GPL-3.0.txt
 cp engine/CREDITS.md engine/android/assets/CREDITS.md
-cmake --build "$BUILD" --target apk --parallel 2
+python3 tools/package-notices.py "$ABI"
+# Maven Central occasionally rate-limits shared CI runners. Retry only deployment;
+# compilation and the APK content contract must still succeed.
+for attempt in 1 2 3; do
+  if cmake --build "$BUILD" --target apk --parallel 2; then break; fi
+  if [ "$attempt" = 3 ]; then exit 1; fi
+  sleep "$((attempt * 15))"
+done
 mkdir -p release
 find "$BUILD" -name '*release-unsigned.apk' -exec cp '{}' "release/StellarTouch-$ABI-unsigned.apk" \;
 test -f "release/StellarTouch-$ABI-unsigned.apk"

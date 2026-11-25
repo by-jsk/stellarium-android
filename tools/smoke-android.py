@@ -14,16 +14,21 @@ out.mkdir(parents=True, exist_ok=True)
 def adb(*args, binary=False):
     return subprocess.check_output(['adb', *args], text=not binary)
 
-subprocess.run(['adb', 'install', '-r', sys.argv[1]], check=True)
+subprocess.run(['adb', 'install', '--no-incremental', '-r', sys.argv[1]], check=True)
+adb('shell','settings','put','secure','immersive_mode_confirmations','confirmed')
 adb('logcat', '-c')
 started = time.monotonic()
 adb('shell', 'am', 'start', '-W', '-n', 'org.byjsk.stellartouch/org.byjsk.stellartouch.StellarActivity', '--ez', 'stellarSmokeTest', 'true')
 deadline = time.monotonic() + 150
 report = None
 ready_seconds = None
+milestones=set()
 while time.monotonic() < deadline:
     logs = adb('logcat', '-d', '-v', 'brief')
     (out/'logcat.txt').write_text(logs, encoding='utf-8')
+    for line in logs.splitlines():
+        if ('STELLAR_BOOT' in line or 'STELLAR_TOUCH_READY' in line) and line not in milestones:
+            print(line,flush=True);milestones.add(line)
     if ready_seconds is None and 'STELLAR_TOUCH_READY' in logs:
         ready_seconds=round(time.monotonic()-started,2)
     match = re.search(r'STELLAR_SMOKE_DONE (\{[^\n]*\})', logs)

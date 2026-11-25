@@ -27,11 +27,14 @@ import org.json.JSONObject;
 
 /** System download + package installer, preserving the installed package and its data. */
 public class StellarActivity extends QtActivity {
+    // Only tools/prepare.py enables this in the x86 CI fixture. ARM64 distribution forbids HTTP.
+    private static final boolean CI_FIXTURE = false;
     private final Handler handler = new Handler();
     private SharedPreferences state;
     private boolean polling;
 
     public boolean isSmokeTest() { return getIntent().getBooleanExtra("stellarSmokeTest", false); }
+    public boolean isUpgradeTest() { return CI_FIXTURE && getIntent().getBooleanExtra("stellarUpgradeTest", false); }
     public int installedVersionCode() {
         try { return (int)getPackageManager().getPackageInfo(getPackageName(),0).getLongVersionCode(); }
         catch(Exception e) { return Integer.MAX_VALUE; }
@@ -60,13 +63,15 @@ public class StellarActivity extends QtActivity {
         android.util.Log.i("StellarTouch", "STELLAR_BOOT Activity create");
         super.onCreate(saved);
         state = getSharedPreferences("updates", MODE_PRIVATE);
+        setNightLighting(true,40,true); // Dark launch until the native saved preference is loaded.
         android.util.Log.i("StellarTouch", "STELLAR_BOOT Activity created");
     }
 
     /** Called only after the user taps the localized install button. */
     public void downloadUpdate(final String url, final int code, final String messages) {
         runOnUiThread(() -> {
-            if (!url.matches("https://github\\.com/by-jsk/app-downloads/releases/download/stellar-touch-v([0-9]+\\.[0-9]+\\.[0-9]+)/StellarTouch-v\\1\\.apk")) return;
+            boolean fixtureUrl = CI_FIXTURE && url.equals("http://10.0.2.2:8765/StellarTouch-v0.1.0.apk");
+            if (!fixtureUrl && !url.matches("https://github\\.com/by-jsk/app-downloads/releases/download/stellar-touch-v([0-9]+\\.[0-9]+\\.[0-9]+)/StellarTouch-v\\1\\.apk")) return;
             try {
                 if (code <= getPackageManager().getPackageInfo(getPackageName(), 0).getLongVersionCode()) return;
                 if (state.getLong("download", -1) >= 0) { poll(); return; }

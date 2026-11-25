@@ -12,6 +12,9 @@
 #include "StelMovementMgr.hpp"
 #include "StelLocation.hpp"
 #include "StelLocationMgr.hpp"
+#include "StelModuleMgr.hpp"
+#include "StelModule.hpp"
+#include "StelTranslator.hpp"
 #include <QtWidgets>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -59,6 +62,11 @@ MobileShell::MobileShell(QGraphicsWidget* parent) : QObject(parent), root(parent
     layout();
     qInfo() << "STELLAR_TOUCH_READY";
 #ifdef Q_OS_ANDROID
+#ifdef STELLAR_CI_FIXTURE
+    if(androidContext().callMethod<jboolean>("isUpgradeTest")) {
+        QTimer::singleShot(2000,this,[this]{updates();});return;
+    }
+#endif
     if(androidContext().callMethod<jboolean>("isSmokeTest"))
         QTimer::singleShot(10000,this,[this]{smokeTest();});
 #endif
@@ -225,6 +233,7 @@ void MobileShell::time()
 void MobileShell::location()
 {
     page("location");
+    addText(trm("locationHint"));
     auto core=StelApp::getInstance().getCore();
     const auto current=core->getCurrentLocation();
     auto lat=new QDoubleSpinBox;lat->setRange(-90,90);lat->setDecimals(5);lat->setValue(current.getLatitude());lat->setAccessibleName(trm("latitude"));
@@ -300,6 +309,7 @@ void MobileShell::observing()
 void MobileShell::tools()
 {
     page("tools");
+    addButton(trm("plugins"),[this]{plugins();});
     auto filter=new QLineEdit;filter->setPlaceholderText(trm("filter"));filter->setAccessibleName(trm("filter"));body->addWidget(filter);
     auto list=new QListWidget;list->setUniformItemSizes(true);list->setMinimumHeight(300);list->setAccessibleName(trm("tools"));
     list->setStyleSheet("QListWidget::item{min-height:46px;padding:5px;border-bottom:1px solid #34445d;}");
@@ -315,11 +325,49 @@ void MobileShell::tools()
     connect(manager,&StelActionMgr::actionToggled,list,[items](const QString& id,bool value){if(auto item=items.value(id,nullptr))item->setCheckState(value?Qt::Checked:Qt::Unchecked);});
     connect(list,&QListWidget::itemClicked,this,[this,manager](QListWidgetItem* item){if(auto a=manager->findAction(item->data(Qt::UserRole).toString())){panel->hide();a->trigger();}});
 }
+bool MobileShell::loadPlugin(const QString& id)
+{
+    auto& manager=StelApp::getInstance().getModuleMgr();
+    if(manager.isPluginLoaded(id))return true;
+    auto& view=StelMainView::getInstance();view.glContextMakeCurrent();
+    bool success=false;
+    try {
+        if(auto module=manager.loadPlugin(id)) {
+            manager.registerModule(module,true);manager.loadExtensions(id);module->init();success=true;
+        }
+    } catch(const std::exception& error) {qWarning()<<"Plugin could not initialize"<<id<<error.what();}
+    view.glContextDoneCurrent();
+    return success;
+}
+void MobileShell::plugins()
+{
+    page("plugins");addText(trm("pluginsHint"));
+    auto filter=new QLineEdit;filter->setPlaceholderText(trm("filter"));filter->setAccessibleName(trm("filter"));body->addWidget(filter);
+    auto list=new QListWidget;list->setUniformItemSizes(true);list->setMinimumHeight(300);list->setAccessibleName(trm("plugins"));list->setStyleSheet("QListWidget::item{min-height:46px;padding:5px;}");body->addWidget(list);
+    QScroller::grabGesture(list->viewport(),QScroller::TouchGesture);
+    for(const auto& plugin:StelApp::getInstance().getModuleMgr().getPluginsList()) {
+        auto item=new QListWidgetItem((plugin.loaded?QString("✓  "):QString("+  "))+q_(plugin.info.displayedName),list);item->setData(Qt::UserRole,plugin.info.id);
+    }
+    connect(filter,&QLineEdit::textChanged,list,[list](const QString& value){for(int i=0;i<list->count();++i)list->item(i)->setHidden(!list->item(i)->text().contains(value,Qt::CaseInsensitive));});
+    connect(list,&QListWidget::itemClicked,this,[this](QListWidgetItem* item){
+        const auto id=item->data(Qt::UserRole).toString();addText(trm("loading"));
+        QTimer::singleShot(100,this,[this,id]{
+            if(!loadPlugin(id)){if(currentPage=="plugins")addText(trm("pluginError"));return;}
+            if(panel)panel->hide();
+            auto module=StelApp::getInstance().getModuleMgr().getModule(id,true);
+            if(!module||!module->configureGui(true))tools();
+        });
+    });
+}
 void MobileShell::updates()
 {
     page("update"); addText(trm("checking"));
     auto status=new QLabel; status->setWordWrap(true);body->addWidget(status);QPointer<QLabel> result=status;
-    auto network=new QNetworkAccessManager(this);QNetworkRequest request(QUrl("https://raw.githubusercontent.com/by-jsk/app-downloads/main/updates/stellar-touch.json"));request.setTransferTimeout(20000);
+    QUrl metadata("https://raw.githubusercontent.com/by-jsk/app-downloads/main/updates/stellar-touch.json");
+#ifdef STELLAR_CI_FIXTURE
+    if(androidContext().callMethod<jboolean>("isUpgradeTest"))metadata=QUrl("http://10.0.2.2:8765/stellar-touch.json");
+#endif
+    auto network=new QNetworkAccessManager(this);QNetworkRequest request(metadata);request.setTransferTimeout(20000);
     auto reply=network->get(request);
     connect(reply,&QNetworkReply::finished,this,[this,reply,network,result]{auto data=reply->readAll();const auto error=reply->error();reply->deleteLater();network->deleteLater();if(!result)return;
         if(error!=QNetworkReply::NoError){result->setText(trm("updateError"));return;}auto info=QJsonDocument::fromJson(data).object();const int code=info.value("versionCode").toInt();const auto ver=info.value("versionName").toString();const auto apk=info.value("apk").toString();
@@ -329,7 +377,11 @@ void MobileShell::updates()
 #endif
         if(code<=installed){result->setText(trm("upToDate"));return;}
         const auto expected=QString("https://github.com/by-jsk/app-downloads/releases/download/stellar-touch-v%1/StellarTouch-v%1.apk").arg(ver);
-        if(!QRegularExpression("^[0-9]+\\.[0-9]+\\.[0-9]+$").match(ver).hasMatch()||apk!=expected){result->setText(trm("updateError"));return;}
+        bool fixture=false;
+#ifdef STELLAR_CI_FIXTURE
+        fixture=androidContext().callMethod<jboolean>("isUpgradeTest")&&apk=="http://10.0.2.2:8765/StellarTouch-v0.1.0.apk";
+#endif
+        if(!fixture&&(!QRegularExpression("^[0-9]+\\.[0-9]+\\.[0-9]+$").match(ver).hasMatch()||apk!=expected)){result->setText(trm("updateError"));return;}
         const auto notes=info.value("notes");const auto text=notes.isObject()?notes.toObject().value(language).toString(notes.toObject().value("en").toString()):notes.toString();result->setText(ver+"\n"+text);
         addButton(trm("installUpdate"),[this,apk,code]{
 #ifdef Q_OS_ANDROID
@@ -339,6 +391,16 @@ void MobileShell::updates()
             QDesktopServices::openUrl(QUrl(apk));
 #endif
         });
+#ifdef STELLAR_CI_FIXTURE
+        if(fixture)QTimer::singleShot(500,this,[this]{
+            const auto buttons=content->findChildren<QPushButton*>();
+            for(auto b:buttons)if(b->text().contains(trm("installUpdate"))){
+                const auto point=StelMainView::getInstance().mapToGlobal(StelMainView::getInstance().mapFromScene(panel->mapToScene(b->mapTo(panel->widget(),b->rect().center()))));
+                const auto ratio=StelMainView::getInstance().devicePixelRatioF();
+                qInfo().noquote()<<"STELLAR_UPDATE_OFFERED "<<QJsonDocument(QJsonObject{{"x",qRound(point.x()*ratio)},{"y",qRound(point.y()*ratio)}}).toJson(QJsonDocument::Compact);
+            }
+        });
+#endif
     });
 }
 
@@ -348,6 +410,8 @@ void MobileShell::smokeTest()
     bool passed=true;
     auto check=[&](const QString& name,bool value){report.insert(name,value);passed=passed&&value;};
     auto conf=StelApp::getInstance().getSettings();
+    report.insert("persisted_language_at_launch",conf->value("mobile/language").toString());
+    report.insert("persisted_region_at_launch",conf->value("mobile/region").toString());
     auto objects=&StelApp::getInstance().getStelObjectMgr();
     for(const auto& name:QStringList{"Sun","Moon","Mars","Sirius","M31"}) {
         auto object=objects->searchByName(name);
@@ -370,6 +434,8 @@ void MobileShell::smokeTest()
     const auto oldJD=StelApp::getInstance().getCore()->getJD();StelApp::getInstance().getCore()->setJD(2451545.0);
     check("time_sets_j2000",qAbs(StelApp::getInstance().getCore()->getJD()-2451545.0)<1e-8);StelApp::getInstance().getCore()->setJD(oldJD);
     check("all_action_catalog_available",StelApp::getInstance().getStelActionManager()->getActionList().size()>50);
+    check("all_compiled_plugins_listed",StelApp::getInstance().getModuleMgr().getPluginsList().size()>=29);
+    check("plugin_loads_on_demand",loadPlugin("AngleMeasure")&&StelApp::getInstance().getStelActionManager()->findAction("actionShow_Angle_Measure"));
     StelApp::getInstance().setVisionModeNight(true);lighting();
     check("night_mode_saved",conf->value("viewing/flag_night").toBool());
     check("red_brightness_controlled",qApp->property("stellarNightBrightness").toDouble()>0&&qApp->property("stellarNightBrightness").toDouble()<=1);

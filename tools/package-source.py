@@ -18,7 +18,7 @@ def allowed(path):
     if any(p in excluded for p in parts): return False
     if parts[0].startswith('build-'): return False
     if parts[:3] == ('engine','android','assets'):
-        return path.name in {'mobile-i18n.json','COPYING','LICENSE-GPL-3.0.txt','CREDITS.md'}
+        return path.name in {'mobile-i18n.json','COPYING','LICENSE-GPL-3.0.txt','CREDITS.md','THIRD-PARTY.md'}
     return True
 
 with tarfile.open(destination,'w:gz',compresslevel=5) as archive:
