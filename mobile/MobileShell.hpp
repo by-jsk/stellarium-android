@@ -7,6 +7,7 @@
 #include <functional>
 class QGraphicsWidget;
 class QGraphicsProxyWidget;
+class SkyGui;
 class QWidget;
 class QVBoxLayout;
 class QToolButton;
@@ -15,7 +16,7 @@ class QPushButton;
 class MobileShell : public QObject
 {
 public:
-    explicit MobileShell(QGraphicsWidget* parent);
+    explicit MobileShell(QGraphicsWidget* parent, SkyGui* sky);
     static void prepare();
     static void fitDialog(QWidget* dialog, QGraphicsProxyWidget* proxy);
     QString trm(const char* key) const;
@@ -23,7 +24,10 @@ protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
 private:
     void layout();
+    void refreshInfo();
+    void changeFont(int delta);
     void toolbar();
+    QString panelStyle() const;
     void page(const char* title);
     void settings();
     void help();
@@ -44,6 +48,14 @@ private:
     QPushButton* addButton(const QString& label, const std::function<void()>& callback);
     void addText(const QString& text);
     QGraphicsWidget* root;
+    SkyGui* sky;
+    QGraphicsProxyWidget* bottomBar = nullptr;
+    QGraphicsProxyWidget* menuSwitch = nullptr;
+    QGraphicsProxyWidget* infoClose = nullptr;
+    QToolButton* nightButton = nullptr;
+    bool menusVisible = true;
+    bool showInfo = true;
+    bool infoDismissed = false;
     QGraphicsProxyWidget* bar = nullptr;
     QGraphicsProxyWidget* panel = nullptr;
     QWidget* content = nullptr;

@@ -2,6 +2,10 @@
 // Copyright (C) 2026 by-jsk. Independent mobile interface for Stellarium.
 #include "MobileShell.hpp"
 #include "MobileVersion.hpp"
+#include "SkyGui.hpp"
+#include "StelGuiItems.hpp"
+#include "ConstellationMgr.hpp"
+#include <algorithm>
 #include "StelMainView.hpp"
 #include "StelApp.hpp"
 #include "StelCore.hpp"
@@ -50,16 +54,31 @@ void MobileShell::prepare()
 #endif
 }
 
-MobileShell::MobileShell(QGraphicsWidget* parent) : QObject(parent), root(parent)
+MobileShell::MobileShell(QGraphicsWidget* parent, SkyGui* skyGui) : QObject(parent), root(parent), sky(skyGui)
 {
     QFile file("assets:/mobile-i18n.json");
     if (file.open(QIODevice::ReadOnly)) strings = QJsonDocument::fromJson(file.readAll()).object();
+    auto& app = StelApp::getInstance();
+    showInfo = app.getSettings()->value("mobile/showObjectInfo", true).toBool();
+    auto constellations = GETSTELMODULE(ConstellationMgr);
+    if (!app.getSettings()->value("mobile/highContrastConstellations", false).toBool()) {
+        const QString lines = "0.52,0.80,1.00", names = "1.00,0.91,0.66";
+        constellations->setLinesColor(Vec3f(lines));
+        constellations->setLabelsColor(Vec3f(names));
+        app.getSettings()->setValue("color/const_lines_color", lines);
+        app.getSettings()->setValue("color/const_names_color", names);
+        app.getSettings()->setValue("mobile/highContrastConstellations", true);
+    }
     applyLanguage();
     toolbar();
+    connect(&app.getStelObjectMgr(), &StelObjectMgr::selectedObjectChanged, this, [this] {
+        infoDismissed = false;
+        refreshInfo();
+    });
     lighting();
     StelMainView::getInstance().installEventFilter(this);
     connect(&StelApp::getInstance(), &StelApp::languageChanged, this, [this] { toolbar(); });
-    connect(&StelApp::getInstance(), &StelApp::visionNightModeChanged, this, [this] {lighting();StelApp::getInstance().getSettings()->sync();toolbar();});
+    connect(&StelApp::getInstance(), &StelApp::visionNightModeChanged, this, [this] {lighting();nightButton->setChecked(StelApp::getInstance().getVisionModeNight());StelApp::getInstance().getSettings()->sync();});
     connect(qApp,&QGuiApplication::applicationStateChanged,this,[](Qt::ApplicationState state){if(state!=Qt::ApplicationActive)StelApp::getInstance().getSettings()->sync();});
     layout();
 #if QT_VERSION >= QT_VERSION_CHECK(6,9,0)
@@ -108,42 +127,151 @@ void MobileShell::applyLanguage()
 
 void MobileShell::toolbar()
 {
-    if (bar) delete bar;
-    auto w = new QWidget;
-    w->setStyleSheet("QWidget{background:#0c1423;color:#edf3ff;font-size:13px;} QToolButton{border:1px solid #34445d;border-radius:10px;padding:4px;min-width:40px;min-height:38px;} QToolButton:pressed{background:#29466c;}");
-    auto box = new QVBoxLayout(w); box->setContentsMargins(6,4,6,4); box->setSpacing(4);
-    auto top = new QHBoxLayout;
-    auto name = new QLabel(trm("title")); name->setMinimumWidth(0); top->addWidget(name,1);
-    auto icon = [this,top](const QString& symbol, const char* key, std::function<void()> cb) {
-        auto b = new QToolButton; b->setText(symbol); b->setAccessibleName(trm(key)); b->setToolTip(trm(key));
-        connect(b,&QToolButton::clicked,this,cb); top->addWidget(b);
+    for (auto proxy : {bar, bottomBar, menuSwitch, infoClose}) {
+        if (proxy) { proxy->hide(); proxy->deleteLater(); }
+    }
+    const QString style = "QWidget{background:#101a28;color:#f1f5ff;} QScrollArea{border:0;}"
+        "QToolButton{border:1px solid #60768e;border-radius:7px;padding:3px;}"
+        "QToolButton:checked{background:#435975;border-color:#c5dfff;}";
+    auto proxyFor = [this, &style](QWidget* widget) {
+        widget->setStyleSheet(style + QString("QToolButton{font-size:%1px;}").arg(qBound(12, StelApp::getInstance().getScreenFontSize(), 30)));
+        auto proxy = new QGraphicsProxyWidget(root);
+        proxy->setWidget(widget);
+        proxy->setZValue(250);
+        return proxy;
     };
-    icon("?","help",[this]{help();}); icon("ⓘ","about",[this]{about();}); icon("⚙","settings",[this]{settings();});
-    auto red=new QToolButton;red->setText("R");red->setCheckable(true);red->setChecked(StelApp::getInstance().getVisionModeNight());red->setAccessibleName(trm("night"));red->setToolTip(trm("night"));
-    red->setStyleSheet("QToolButton{color:#ed7777;font-weight:bold;} QToolButton:checked{background:#611111;color:#ffb0b0;border:1px solid #d55;}");
-    connect(red,&QToolButton::clicked,this,[]{auto& app=StelApp::getInstance();app.setVisionModeNight(!app.getVisionModeNight());});top->insertWidget(1,red);
-    box->addLayout(top);
-    auto bottom = new QHBoxLayout;
-    auto item = [this,bottom](const char* key, std::function<void()> cb) {
-        auto b = new QToolButton; b->setText(trm(key)); b->setAccessibleName(trm(key));
-        b->setSizePolicy(QSizePolicy::Ignored,QSizePolicy::Preferred); b->setMinimumWidth(40); connect(b,&QToolButton::clicked,this,cb); bottom->addWidget(b,1);
+    auto button = [this](QString label, QString description, const std::function<void()>& callback) {
+        auto b = new QToolButton;
+        b->setText(label);
+        b->setAccessibleName(description);
+        b->setToolTip(description);
+        b->setMinimumSize(44,44);
+        connect(b, &QToolButton::clicked, this, callback);
+        return b;
     };
-    item("search",[this]{search();}); item("time",[this]{time();}); item("location",[this]{location();}); item("tools",[this]{tools();});
-    box->addLayout(bottom);
-    bar = new QGraphicsProxyWidget(root); bar->setWidget(w); bar->setZValue(250); layout();
+    auto row = [&proxyFor](QGraphicsProxyWidget*& proxy) {
+        auto scroll = new QScrollArea;
+        auto inner = new QWidget;
+        auto box = new QHBoxLayout(inner);
+        box->setContentsMargins(3,2,3,2);
+        box->setSpacing(4);
+        box->setSizeConstraint(QLayout::SetMinAndMaxSize);
+        scroll->setWidget(inner);
+        scroll->setWidgetResizable(true);
+        scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        QScroller::grabGesture(scroll->viewport(), QScroller::TouchGesture);
+        proxy = proxyFor(scroll);
+        return box;
+    };
+    auto top = row(bar);
+    nightButton = button("R", trm("night"), [] {
+        auto& app = StelApp::getInstance();
+        app.setVisionModeNight(!app.getVisionModeNight());
+    });
+    nightButton->setCheckable(true);
+    nightButton->setChecked(StelApp::getInstance().getVisionModeNight());
+    top->addWidget(nightButton);
+    top->addWidget(button("A+", trm("fontUp"), [this]{changeFont(2);}));
+    top->addWidget(button("A−", trm("fontDown"), [this]{changeFont(-2);}));
+    auto info = button(trm("objectInfo"), trm("objectInfo"), [this]{
+        showInfo = !showInfo;
+        infoDismissed = false;
+        StelApp::getInstance().getSettings()->setValue("mobile/showObjectInfo", showInfo);
+        refreshInfo();
+    });
+    info->setCheckable(true);
+    info->setChecked(showInfo);
+    top->addWidget(info);
+    top->addWidget(button("?", trm("help"), [this]{help();}));
+    top->addWidget(button("ⓘ", trm("about"), [this]{about();}));
+    top->addWidget(button("⚙", trm("settings"), [this]{settings();}));
+
+    auto bottom = row(bottomBar);
+    auto add = [bottom](QToolButton* b) {
+        b->setMinimumSize(80,54);
+        bottom->addWidget(b);
+    };
+    add(button(trm("search"), trm("search"), [this]{search();}));
+    add(button(trm("time"), trm("time"), [this]{time();}));
+    add(button(trm("location"), trm("location"), [this]{location();}));
+    add(button(trm("tools"), trm("tools"), [this]{tools();}));
+    auto items = sky->bottomBar->childItems();
+    std::stable_sort(items.begin(), items.end(), [](auto a, auto b){ return a->x() < b->x(); });
+    for (auto item : items) {
+        auto original = dynamic_cast<StelButton*>(item);
+        if (!original || !original->mobileAction()) continue;
+        auto a = original->mobileAction();
+        const QString label = a->getText();
+        auto b = button(label, label, [action=QPointer<StelAction>(a)]{if (action) action->trigger();});
+        b->setCheckable(a->isCheckable());
+        if (a->isCheckable()) {
+            b->setChecked(a->isChecked());
+            connect(a, &StelAction::toggled, b, &QToolButton::setChecked);
+        }
+        add(b);
+    }
+    menuSwitch = proxyFor(button({}, {}, [this]{
+        menusVisible = !menusVisible;
+        if (!menusVisible && panel) panel->hide();
+        layout();
+    }));
+    infoClose = proxyFor(button("×", trm("close"), [this]{infoDismissed = true; refreshInfo();}));
+    layout();
+}
+
+void MobileShell::changeFont(int delta)
+{
+    auto& app = StelApp::getInstance();
+    app.setScreenFontSize(qBound(10, app.getScreenFontSize()+delta, 36));
+    auto constellations = GETSTELMODULE(ConstellationMgr);
+    constellations->setFontSize(qBound(10, constellations->getFontSize()+delta, 36));
+    toolbar();
+    if (panel) {
+        panel->widget()->setStyleSheet(panelStyle());
+        layout();
+    }
+}
+
+void MobileShell::refreshInfo()
+{
+    const bool visible = showInfo && !infoDismissed && !StelApp::getInstance().getStelObjectMgr().getSelectedObject().isEmpty();
+    sky->infoPanel->setVisible(visible);
+    infoClose->setVisible(visible);
 }
 
 void MobileShell::layout()
 {
-    auto& view=StelMainView::getInstance();
-    const auto size=view.size();QMargins safe;
+    auto& view = StelMainView::getInstance();
+    QMargins safe;
 #if QT_VERSION >= QT_VERSION_CHECK(6,9,0)
-    if(auto window=view.windowHandle())safe=window->safeAreaMargins();
+    if (auto window = view.windowHandle()) safe = window->safeAreaMargins();
 #endif
-    qApp->setProperty("stellarSafeTop",safe.top());
-    const auto width=size.width()-safe.left()-safe.right(),height=size.height()-safe.top()-safe.bottom();
-    if(bar) { bar->setPos(safe.left()+4,safe.top()+4); bar->resize(qMax(240,width-8),104); }
-    if(panel) { panel->setPos(safe.left()+6,safe.top()+116); panel->resize(qMax(220,width-12),qMax(120,height-124)); }
+    const QRect area = view.rect().marginsRemoved(safe).adjusted(4,4,-4,-4);
+    auto toggle = static_cast<QToolButton*>(menuSwitch->widget());
+    const auto label = trm(menusVisible ? "hideMenus" : "showMenus");
+    toggle->setText(label);
+    toggle->setAccessibleName(label);
+    menuSwitch->resize(toggle->sizeHint());
+    menuSwitch->setPos(area.right()+1-menuSwitch->size().width(), area.top());
+    const int topHeight = 52 + bar->widget()->style()->pixelMetric(QStyle::PM_ScrollBarExtent);
+    const int bottomHeight = topHeight+10;
+    bar->setGeometry(QRectF(area.left(), area.top(), qMax(1, int(menuSwitch->x())-area.left()-4), topHeight));
+    bottomBar->setGeometry(QRectF(area.left(), area.bottom()+1-bottomHeight, area.width(), bottomHeight));
+    bar->setVisible(menusVisible);
+    bottomBar->setVisible(menusVisible);
+    sky->bottomBar->hide();
+    sky->buttonBarsFrame->hide();
+    sky->autoHidebts->setVisible(menusVisible);
+    sky->leftBar->setVisible(menusVisible);
+    const int infoTop = area.top() + (menusVisible ? topHeight+2 : 0);
+    infoClose->setPos(area.left(), infoTop);
+    qApp->setProperty("stellarInfoTop", infoTop+48);
+    qApp->setProperty("stellarInfoLeft", area.left());
+    qApp->setProperty("stellarInfoWidth", area.width());
+    sky->updateInfoPanelPos();
+    refreshInfo();
+    if (panel) panel->setGeometry(QRectF(area.left(), area.top()+topHeight, area.width(), qMax(1,area.height()-topHeight-bottomHeight)));
 }
 
 bool MobileShell::eventFilter(QObject* watched, QEvent* event)
@@ -176,15 +304,21 @@ void MobileShell::fitDialog(QWidget* dialog, QGraphicsProxyWidget* proxy)
     proxy->setPos(safe.left()+8,safe.top()+120); proxy->setZValue(260);
 }
 
+QString MobileShell::panelStyle() const
+{
+    const int size = qBound(12, StelApp::getInstance().getScreenFontSize(), 30);
+    return QString("QWidget{background:#111c2c;color:#eff5ff;font-size:%1px;} QPushButton,QToolButton,QComboBox,QLineEdit,QDateTimeEdit,QDoubleSpinBox{min-height:44px;border:1px solid #3c526b;border-radius:8px;padding:4px;background:#182b42;color:#eff5ff;} QPushButton:checked{background:#375f86;} QLabel{background:transparent;} QLabel#pageTitle{font-size:%2px;font-weight:bold;} QScrollArea{border:0;}").arg(size).arg(size+4);
+}
+
 void MobileShell::page(const char* title)
 {
     currentPage=QString::fromUtf8(title);
-    if(panel) { delete panel; panel=nullptr; }
+    if(panel) { panel->hide(); panel->deleteLater(); panel=nullptr; }
     auto frame=new QWidget;
-    frame->setStyleSheet("QWidget{background:#111c2c;color:#eff5ff;font-size:15px;} QPushButton,QToolButton,QComboBox,QLineEdit,QDateTimeEdit,QDoubleSpinBox{min-height:44px;border:1px solid #3c526b;border-radius:8px;padding:4px;background:#182b42;color:#eff5ff;} QPushButton:checked{background:#375f86;} QLabel{background:transparent;} QScrollArea{border:0;}");
+    frame->setStyleSheet(panelStyle());
     auto outer=new QVBoxLayout(frame);
     auto header=new QHBoxLayout;
-    auto heading=new QLabel(trm(title)); heading->setStyleSheet("font-size:19px;font-weight:bold"); header->addWidget(heading,1);
+    auto heading=new QLabel(trm(title)); heading->setObjectName("pageTitle"); header->addWidget(heading,1);
     auto close=new QToolButton; close->setText("×"); close->setAccessibleName(trm("close")); connect(close,&QToolButton::clicked,this,[this]{panel->hide(); StelMainView::getInstance().focusSky();}); header->addWidget(close);
     outer->addLayout(header);
     auto scroll=new QScrollArea; scroll->setWidgetResizable(true);
@@ -466,6 +600,22 @@ void MobileShell::smokeTest()
     check("all_action_catalog_available",StelApp::getInstance().getStelActionManager()->getActionList().size()>50);
     check("all_compiled_plugins_listed",StelApp::getInstance().getModuleMgr().getPluginsList().size()>=29);
     check("plugin_loads_on_demand",loadPlugin("AngleMeasure")&&StelApp::getInstance().getStelActionManager()->findAction("actionShow_Angle_Measure"));
+    auto menuButton = static_cast<QToolButton*>(menuSwitch->widget());
+    menuButton->click();
+    check("sky_only_mode", !bar->isVisible() && !bottomBar->isVisible() && menuSwitch->isVisible());
+    menuButton->click();
+    check("restore_menus", bar->isVisible() && bottomBar->isVisible());
+    if (objects->findAndSelect("Sirius")) {
+        refreshInfo();
+        static_cast<QToolButton*>(infoClose->widget())->click();
+        check("dismiss_info_keeps_selection", !sky->infoPanel->isVisible() && !objects->getSelectedObject().isEmpty());
+        objects->unSelect();
+    }
+    const bool nightBefore = nightButton->isChecked();
+    nightButton->click();
+    check("night_button_toggles", nightButton->isChecked()!=nightBefore);
+    nightButton->click();
+    check("night_button_round_trip", nightButton->isChecked()==nightBefore);
     StelApp::getInstance().setVisionModeNight(true);lighting();
     check("night_mode_saved",conf->value("viewing/flag_night").toBool());
     check("red_brightness_controlled",qApp->property("stellarNightBrightness").toDouble()>0&&qApp->property("stellarNightBrightness").toDouble()<=1);
