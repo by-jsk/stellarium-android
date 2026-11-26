@@ -145,7 +145,8 @@ jobs:
           arch: x86_64
           target: google_apis_ps16k
           profile: pixel_6
-          emulator-options: -no-window -memory 3072 -partition-size 4096 -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none
+          # The 16-KiB image runs Google services in addition to the software GPU.
+          emulator-options: -no-window -memory 6144 -partition-size 4096 -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none
           disable-animations: true
           script: python3 tools/smoke-android.py release/StellarTouch-x86_64-test.apk
       - name: Upload build evidence

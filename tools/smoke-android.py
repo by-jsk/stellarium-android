@@ -45,10 +45,13 @@ while time.monotonic() < deadline:
 time.sleep(8)
 (out/'settings-ko.png').write_bytes(adb('exec-out', 'screencap', '-p', binary=True))
 if report is None:
+    (out/'startup-events.txt').write_text(adb('logcat','-b','events','-d','-v','brief'),encoding='utf-8')
+    (out/'startup-activity.txt').write_text(adb('shell','dumpsys','activity','exit-info','org.byjsk.stellartouch'),encoding='utf-8')
     # The Google APIs CI emulator supports root; capture stalled native threads.
     subprocess.run(['adb','root'],capture_output=True)
     subprocess.run(['adb','wait-for-device'],check=True)
-    pid=adb('shell','pidof','org.byjsk.stellartouch').strip()
+    lookup=subprocess.run(['adb','shell','pidof','org.byjsk.stellartouch'],capture_output=True,text=True,timeout=15)
+    pid=lookup.stdout.strip()
     if pid:
         stacks=subprocess.run(['adb','shell','debuggerd','-b',pid],capture_output=True,text=True)
         (out/'native-stacks.txt').write_text(stacks.stdout+stacks.stderr,encoding='utf-8')
