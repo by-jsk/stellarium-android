@@ -21,7 +21,8 @@ from android_test_adb import adb,app_crashed,report_from_log
 
 version=json.loads((Path(__file__).resolve().parents[1]/'version.json').read_text())
 code=version['versionCode']
-apk_name=f"StellarTouch-v{version['versionName']}.apk"
+# [20261126 by jsk] 앱의 CI 전용 허용 주소를 사용하고, 파일에는 최신 후보 APK를 제공함.
+apk_name='StellarTouch-v0.1.0.apk'
 package=version['packageId']
 activity=package+'/'+package+'.StellarActivity'
 out=Path(os.environ.get('STELLAR_EVIDENCE_DIR','release/smoke'))
