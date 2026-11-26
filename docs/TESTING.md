@@ -71,12 +71,19 @@ key, verifies its certificate and alignment, checks package identity and emits
 the SHA-256 digest. Source packaging excludes `.secrets`, keystores, caches and
 build outputs.
 
-The `Sign verified Android release` workflow can sign a tested ARM64 artifact
-from a successful `main` build. A repository owner dispatches it from `main`
-using the build's run ID. The `stellar-release` environment allows `main` only
-and expects the encrypted `STELLAR_KEYSTORE_B64` and `STELLAR_SIGN_PASSWORD`
-secrets. The signing step checks the published certificate fingerprint and
-uploads the signed APK with its provenance and verification reports.
+To prepare a release, run `Android engine and mobile shell` on `main` as the
+repository owner and select `sign_release`. A fresh build also produces the
+corresponding source archive. After the ARM64 build, both Android emulator
+checks and the update installation test pass, `Sign verified Android release`
+automatically signs the ARM64 APK. The signed APK and its reports are in the
+`stellar-touch-signed-arm64` artifact. The public release still uses the APK,
+source and evidence from that build.
+
+The `stellar-release` environment allows `main` only and stores the encrypted
+`STELLAR_KEYSTORE_B64` and `STELLAR_SIGN_PASSWORD` secrets. Signing checks the
+existing release certificate, package, version and 16-KiB alignment. For a
+signing-only retry, dispatch `Sign verified Android release` with the full
+successful build's run ID.
 
 Run `python3 tools/prepare-release.py --evidence release/smoke --workflow-run <run-id>`
 with the successful run's APK, corresponding source and both emulator reports.

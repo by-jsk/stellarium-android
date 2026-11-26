@@ -14,6 +14,7 @@ import zipfile
 
 REPOSITORY = "by-jsk/stellarium-android"
 BUILD_WORKFLOW = ".github/workflows/android.yml"
+RELEASE_RUN_TITLE = "Stellar Touch release candidate"
 APK_FILE = "StellarTouch-arm64-v8a-unsigned.apk"
 APK_INPUTS = (
     ".gitattributes",
@@ -97,6 +98,11 @@ def main():
             "Choose a successful Stellar Touch build from this repository's main branch")
     require(not args.expected_source_sha or source_sha == args.expected_source_sha,
             "The build run does not match the expected source SHA")
+    if os.environ.get("GITHUB_EVENT_NAME") == "workflow_run":
+        owner = REPOSITORY.split("/", 1)[0]
+        require(run["event"] == "workflow_dispatch" and run["display_title"] == RELEASE_RUN_TITLE
+                and run["actor"]["login"] == owner and run["triggering_actor"]["login"] == owner,
+                "Automatic signing requires an explicit release build requested by the repository owner")
 
     # Signing workflow/docs can land after the native build. All APK inputs must
     # still be identical in the reviewed checkout and the tested source commit.

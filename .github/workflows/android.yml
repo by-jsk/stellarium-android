@@ -1,4 +1,5 @@
 name: Android engine and mobile shell
+run-name: ${{ inputs.sign_release && !inputs.verify_16k_only && 'Stellar Touch release candidate' || format('Android verification ({0})', github.ref_name) }}
 on:
   push:
     branches: [main]
@@ -10,6 +11,11 @@ on:
         type: string
       verify_16k_only:
         description: 'Retry the 16-KiB smoke test for an already built APK'
+        required: false
+        type: boolean
+        default: false
+      sign_release:
+        description: 'Sign the ARM64 candidate automatically after all Android checks pass'
         required: false
         type: boolean
         default: false
@@ -34,6 +40,11 @@ jobs:
           - arch: android_x86_64
             abi: x86_64
     steps:
+      - name: Check release request
+        if: inputs.sign_release && (inputs.verify_16k_only || github.ref != 'refs/heads/main' || github.actor != github.repository_owner || github.triggering_actor != github.repository_owner)
+        run: |
+          echo 'Release signing requires the repository owner, main, and the full Android test suite.' >&2
+          exit 1
       - uses: actions/checkout@v4
       - name: Host build dependencies
         run: |

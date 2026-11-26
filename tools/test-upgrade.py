@@ -17,7 +17,9 @@ import tempfile
 import threading
 import time
 import xml.etree.ElementTree as ET
+from PIL import Image
 from android_test_adb import adb,app_crashed,report_from_log
+from android_test_pixels import update_install_control
 
 version=json.loads((Path(__file__).resolve().parents[1]/'version.json').read_text())
 code=version['versionCode']
@@ -90,8 +92,21 @@ with tempfile.TemporaryDirectory(prefix='stellar-upgrade-') as directory:
         adb('shell','input','tap',str(update_button['x']),str(update_button['y']))
         offered=wait_marker('STELLAR_UPDATE_OFFERED')
         print('Settings update button opened the update screen and offered the candidate',flush=True)
-        (out/'upgrade-offer.png').write_bytes(adb('exec-out','screencap','-p',binary=True))
-        adb('shell','input','tap',str(offered['x']),str(offered['y']))
+        # Qt's reported point is in device-scaled coordinates on some runs.
+        # The emulator input command expects the same pixels we see on screen.
+        offer_screen = out/'upgrade-offer.png'
+        for attempt in range(5):
+            offer_screen.write_bytes(adb('exec-out','screencap','-p',binary=True))
+            try:
+                with Image.open(offer_screen) as image:
+                    install_x, install_y = update_install_control(image)
+                break
+            except ValueError:
+                if attempt == 4:
+                    raise
+                time.sleep(1)
+        print(f'Tapping rendered install button at ({install_x}, {install_y}); Qt reported {offered}',flush=True)
+        adb('shell','input','tap',str(install_x),str(install_y))
         deadline=time.monotonic()+180
         prompted=False
         completed=False
@@ -138,6 +153,7 @@ assert after['persisted_language_at_launch']=='ko',after
 assert after['persisted_region_at_launch']=='JP',after
 report={'passed':True,'previous_versionCode':code-1,'installed_versionCode':code,
         'opened_from_settings_button':True,
+        'install_button_tap':{'x':install_x,'y':install_y,'basis':'rendered screenshot'},
         'metadata_detected':True,'apk_downloaded':True,'system_install_confirmed':prompted,
         'system_install_completed':completed,
         'language_preserved':'ko','region_preserved':'JP','same_signer_required':True,
