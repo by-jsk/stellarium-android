@@ -25,6 +25,8 @@ code=version['versionCode']
 apk_name='StellarTouch-v0.1.0.apk'
 package=version['packageId']
 activity=package+'/'+package+'.StellarActivity'
+# [20261126 by jsk] Google APIs와 AOSP 시험 기기에서 Android 시스템 설치 창만 선택함.
+system_installers={'com.android.packageinstaller','com.google.android.packageinstaller'}
 out=Path(os.environ.get('STELLAR_EVIDENCE_DIR','release/smoke'))
 out.mkdir(parents=True,exist_ok=True)
 candidate=Path(sys.argv[1]).resolve()
@@ -99,7 +101,7 @@ with tempfile.TemporaryDirectory(prefix='stellar-upgrade-') as directory:
             xml=adb('shell','cat','/sdcard/stellar-update-window.xml')
             (out/'upgrade-installer.xml').write_text(xml,encoding='utf-8')
             nodes=list(ET.fromstring(xml).iter('node'))
-            finished=[node for node in nodes if node.get('package')=='com.google.android.packageinstaller'
+            finished=[node for node in nodes if node.get('package') in system_installers
                       and node.get('text','').lower() in ('done','open','완료','열기')
                       and node.get('enabled')=='true' and node.get('clickable')=='true']
             if re.search(rf'versionCode={code}\s',installed) and finished:
@@ -113,7 +115,9 @@ with tempfile.TemporaryDirectory(prefix='stellar-upgrade-') as directory:
                 print(f'Android installer completed; versionCode={code} confirmed',flush=True)
                 break
             for node in nodes:
-                if node.get('text','').lower() in ('install','update','설치','업데이트') and node.get('clickable')=='true' and node.get('enabled')=='true':
+                if (node.get('package') in system_installers
+                        and node.get('text','').lower() in ('install','update','설치','업데이트')
+                        and node.get('clickable')=='true' and node.get('enabled')=='true'):
                     bounds=list(map(int,re.findall(r'\d+',node.attrib['bounds'])))
                     (out/'upgrade-installer.png').write_bytes(adb('exec-out','screencap','-p',binary=True))
                     adb('shell','input','tap',str((bounds[0]+bounds[2])//2),str((bounds[1]+bounds[3])//2))

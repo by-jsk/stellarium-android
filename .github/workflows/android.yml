@@ -130,8 +130,11 @@ jobs:
           emulator-options: -no-window -memory 3072 -partition-size 4096 -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none
           disable-animations: true
           script: |
-            python3 tools/smoke-android.py release/StellarTouch-x86_64-test.apk
-            python3 tools/test-upgrade.py release/StellarTouch-x86_64-test.apk release/previous-test.apk
+            # [20261126 by jsk] 일반 화면 시험이 실패해도 업데이트 버튼과 설치 시험을 끝까지 수행함.
+            status=0
+            python3 tools/smoke-android.py release/StellarTouch-x86_64-test.apk || status=$?
+            python3 tools/test-upgrade.py release/StellarTouch-x86_64-test.apk release/previous-test.apk || status=$?
+            exit "$status"
       - name: Verify on a 16-KiB page emulator
         if: always() && !cancelled() && matrix.abi == 'x86_64' && steps.fixture.outcome == 'success'
         uses: reactivecircus/android-emulator-runner@v2
