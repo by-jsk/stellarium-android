@@ -116,6 +116,15 @@ endif()
     replace(src/'src/core/StelLocationMgr.cpp',
             '\tlocations = loadCitiesBin("data/base_locations.bin.gz");',
             '#ifdef Q_OS_ANDROID\n\tlocations = loadCitiesBin("data/base_locations.bin");\n#else\n\tlocations = loadCitiesBin("data/base_locations.bin.gz");\n#endif')
+    speech = src / 'src/core/StelSpeechMgr.cpp'
+    replace(speech, '\t// Note: 6.10 is a placeholder. Testing whether 6.4 is enough on e.g. Ubuntu 24.04.\n#if (QT_VERSION>=QT_VERSION_CHECK(6,10,0))',
+            '#if defined(Q_OS_ANDROID)\n'
+            '\t// The Android speech service may disconnect between voice queries.\n'
+            '\tif (m_speech && !m_voices.isEmpty())\n'
+            '\t\tm_speech->setVoice(findVoice(name));\n'
+            '#elif (QT_VERSION>=QT_VERSION_CHECK(6,10,0))')
+    replace(speech, '#if (QT_VERSION>=QT_VERSION_CHECK(6,10,0))\n\t\tQList<QVoice> voices=m_speech->findVoices(storedVoice);',
+            '#if (QT_VERSION>=QT_VERSION_CHECK(6,10,0)) && !defined(Q_OS_ANDROID)\n\t\tQList<QVoice> voices=m_speech->findVoices(storedVoice);')
     defaults = src / 'cmake' / 'default_cfg.ini.cmake'
     replace(defaults, 'minimum_fps                         = 18', 'minimum_fps                         = 2')
     replace(defaults, 'maximum_fps                         = 10000', 'maximum_fps                         = 60')
@@ -144,6 +153,10 @@ endif()
     changed=['src/CMakeLists.txt','src/main.cpp','src/gui/StelGui.cpp','src/gui/StelDialog.cpp',
              'src/gui/SkyGui.hpp','src/gui/StelGuiItems.hpp','src/gui/SkyGui.cpp','cmake/default_cfg.ini.cmake','src/StelMainView.cpp',
              'src/StelSplashScreen.cpp','src/core/StelLocationMgr.cpp']
+    speech_text = speech.read_text(encoding='utf-8')
+    speech_notice = '// Modified for Stellar Touch Android on 2026-11-26: tolerate speech service disconnection.\n'
+    if not speech_text.startswith(speech_notice):
+        speech.write_text(speech_notice + speech_text, encoding='utf-8', newline='\n')
     for name in changed:
         path=src/name
         prefix='//' if name.endswith(('.cpp', '.hpp')) else '#'
