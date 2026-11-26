@@ -43,6 +43,22 @@ while time.monotonic() < deadline:
 # Let a full frame reach the software-rendered Android surface after the native
 # self-check changes six languages. Its first report can precede presentation.
 time.sleep(8)
+
+# The 16-KiB Google APIs image can put a Pixel Launcher ANR over the app.
+# Dismiss only that exact system dialog, then inspect the real app pixels.
+if report is not None and os.environ.get('STELLAR_EXPECT_PAGE_SIZE'):
+    adb('shell','uiautomator','dump','/sdcard/stellar-overlay.xml')
+    overlay=adb('shell','cat','/sdcard/stellar-overlay.xml')
+    nodes=list(ET.fromstring(overlay).iter('node'))
+    launcher_anr=any(node.get('package')=='android'
+                     and node.get('text')=="Pixel Launcher isn't responding" for node in nodes)
+    if launcher_anr:
+        (out/'pixel-launcher-anr.png').write_bytes(adb('exec-out','screencap','-p',binary=True))
+        close_app=next(node for node in nodes if node.get('package')=='android'
+                       and node.get('text')=='Close app' and node.get('enabled')=='true')
+        bounds=list(map(int,re.findall(r'\d+',close_app.attrib['bounds'])))
+        adb('shell','input','tap',str((bounds[0]+bounds[2])//2),str((bounds[1]+bounds[3])//2))
+        time.sleep(5)
 (out/'settings-ko.png').write_bytes(adb('exec-out', 'screencap', '-p', binary=True))
 if report is None:
     (out/'startup-events.txt').write_text(adb('logcat','-b','events','-d','-v','brief'),encoding='utf-8')
