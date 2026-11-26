@@ -1,9 +1,35 @@
 """ADB snapshot handling for disposable CI emulators."""
+import json
 from pathlib import Path
 import os
 import subprocess
 import time
 import re
+
+def report_from_log(logs, marker):
+    """Read a Qt JSON report, including complete fields before Android's log limit."""
+    for line in reversed(logs.splitlines()):
+        prefix, separator, payload = line.partition(marker)
+        if not separator or not payload.lstrip().startswith('{'):
+            continue
+        payload = payload.lstrip()
+        try:
+            return json.loads(payload)
+        except json.JSONDecodeError:
+            # [20261126 by jsk] Qt Android의 1 KiB 줄 절단 시 이미 기록된 완전한 필드만 복구함.
+            if marker != 'STELLAR_SMOKE_DONE' or len(line[len(prefix):].encode('utf-8')) < 1023:
+                continue
+            for match in reversed(list(re.finditer(',', payload))):
+                try:
+                    report = json.loads(payload[:match.start()] + '}')
+                except json.JSONDecodeError:
+                    continue
+                if type(report.get('passed')) is bool:
+                    report['native_log_truncated'] = True
+                    return report
+                break
+    return None
+
 
 def app_crashed(logs,pid):
     """Google APIs emulator services can crash independently of the tested app."""

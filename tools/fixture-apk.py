@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Make an unsigned versionCode=0 fixture from the CI APK; never distribute this."""
+"""Make an unsigned previous-version fixture from the CI APK; never distribute this."""
 import struct
 import sys
 import zipfile
@@ -33,7 +33,9 @@ def previous_manifest(data):
                 name=struct.unpack_from('<I',data,attr+4)[0]
                 if strings[name]=='versionCode':
                     assert data[attr+15]==0x10
-                    struct.pack_into('<I',data,attr+16,0);changed=True
+                    code, = struct.unpack_from('<I',data,attr+16)
+                    assert code > 0
+                    struct.pack_into('<I',data,attr+16,code-1);changed=True
         offset+=size
     assert changed,'versionCode attribute missing'
     return data

@@ -11,10 +11,12 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 LOCK = json.loads((ROOT / 'source.lock.json').read_text())
 
-def replace(path, old, new):
+def replace(path, old, new, *, previous=()):
     text = path.read_text(encoding='utf-8')
     if new in text:
         return
+    # [20261126 by jsk] 원본 문맥을 포함하는 과거 패치는 전체 블록으로 먼저 교체함.
+    old = next((candidate for candidate in previous if candidate in text), old)
     if text.count(old) != 1:
         raise RuntimeError(f'Upstream context changed: {path}: {old[:90]!r}')
     path.write_text(text.replace(old, new), encoding='utf-8', newline='\n')
@@ -84,16 +86,32 @@ endif()
         main_cpp.write_text(text, encoding='utf-8', newline='\n')
     gui = src / 'src' / 'gui' / 'StelGui.cpp'
     replace(gui, '#include "StelGui.hpp"', '#include "StelGui.hpp"\n#include "mobile/MobileShell.hpp"')
-    replace(gui, '\tinitDone = true;\n}', '\tinitDone = true;\n#ifdef Q_OS_ANDROID\n\tnew MobileShell(atopLevelGraphicsWidget);\n#endif\n}')
+    unpatched_init = '\tinitDone = true;\n}'
+    previous_init = '\tinitDone = true;\n#ifdef Q_OS_ANDROID\n\tnew MobileShell(atopLevelGraphicsWidget);\n#endif\n}'
+    replace(gui, unpatched_init, previous_init.replace('atopLevelGraphicsWidget)', 'atopLevelGraphicsWidget, skyGui)'),
+            previous=(previous_init,))
+    replace(gui, 'skyGui->infoPanel->setTextFromObjects(selected);',
+            'if (skyGui->infoPanel->isVisible()) skyGui->infoPanel->setTextFromObjects(selected);')
     dialog = src / 'src' / 'gui' / 'StelDialog.cpp'
     replace(dialog, '#include "StelDialog.hpp"', '#include "StelDialog.hpp"\n#include "mobile/MobileShell.hpp"')
     replace(dialog, '\t\tproxy->setFocus();', '#ifdef Q_OS_ANDROID\n\t\tMobileShell::fitDialog(dialog, proxy);\n#endif\n\t\tproxy->setFocus();')
     sky_gui = src / 'src' / 'gui' / 'SkyGui.cpp'
     replace(sky_gui,'#include "SkyGui.hpp"','#include "SkyGui.hpp"\n#include <QApplication>')
-    toolbar='\tinfoY = qMax(infoY, qreal(118+qApp->property("stellarSafeTop").toInt())); // Stellar Touch toolbar clearance\n\tinfoPanel->setTextWidth(qMax(220, StelMainView::getInstance().width()-20));\n\tinfoPanel->setPos(infoX, infoY);'
-    legacy=toolbar.replace('118+qApp->property("stellarSafeTop").toInt()','118')
-    if legacy in sky_gui.read_text():replace(sky_gui,legacy,toolbar)
-    replace(sky_gui,'\tinfoPanel->setPos(infoX, infoY);',toolbar)
+    replace(src / 'src/gui/SkyGui.hpp', 'friend class StelGui;', 'friend class StelGui;\n\tfriend class MobileShell;')
+    replace(src / 'src/gui/StelGuiItems.hpp', 'int getButtonPixmapWidth() const;',
+            'StelAction* mobileAction() const { return action; }\n\tint getButtonPixmapWidth() const;')
+    unpatched_info = '\tinfoPanel->setPos(infoX, infoY);'
+    previous_info = (
+        '\tinfoY = qMax(infoY, qreal(118+qApp->property("stellarSafeTop").toInt())); // Stellar Touch toolbar clearance\n'
+        '\tinfoPanel->setTextWidth(qMax(220, StelMainView::getInstance().width()-20));\n' + unpatched_info
+    )
+    replace(sky_gui, unpatched_info,
+            '\tif (qApp->property("stellarInfoWidth").isValid()) {\n'
+            '\t\tinfoX = qApp->property("stellarInfoLeft").toInt();\n'
+            '\t\tinfoY = qApp->property("stellarInfoTop").toInt();\n'
+            '\t\tinfoPanel->setTextWidth(qApp->property("stellarInfoWidth").toInt());\n'
+            '\t}\n' + unpatched_info,
+            previous=(previous_info, previous_info.replace('118+qApp->property("stellarSafeTop").toInt()', '118')))
     # Android AAPT expands .gz assets and strips that suffix in the APK.
     replace(src/'src/core/StelLocationMgr.cpp',
             '\tlocations = loadCitiesBin("data/base_locations.bin.gz");',
@@ -124,11 +142,11 @@ endif()
     setPixmap(QPixmap::fromImage(image));''')
         splash.write_text(text, encoding='utf-8', newline='\n')
     changed=['src/CMakeLists.txt','src/main.cpp','src/gui/StelGui.cpp','src/gui/StelDialog.cpp',
-             'src/gui/SkyGui.cpp','cmake/default_cfg.ini.cmake','src/StelMainView.cpp',
+             'src/gui/SkyGui.hpp','src/gui/StelGuiItems.hpp','src/gui/SkyGui.cpp','cmake/default_cfg.ini.cmake','src/StelMainView.cpp',
              'src/StelSplashScreen.cpp','src/core/StelLocationMgr.cpp']
     for name in changed:
         path=src/name
-        prefix='//' if name.endswith('.cpp') else '#'
+        prefix='//' if name.endswith(('.cpp', '.hpp')) else '#'
         notice=f'{prefix} Modified for by-jsk/Stellar Touch Android on 2026-11-25; original notices retained.\n'
         text=path.read_text(encoding='utf-8')
         if notice not in text:path.write_text(notice+text,encoding='utf-8',newline='\n')

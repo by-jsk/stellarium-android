@@ -11,7 +11,12 @@ from pathlib import Path
 root=Path(__file__).resolve().parents[1]
 parser=argparse.ArgumentParser()
 parser.add_argument('--evidence',type=Path,required=True)
+parser.add_argument('--workflow-run', type=int, required=True,
+                    help='GitHub Actions run ID that produced the supplied build and test evidence')
 args=parser.parse_args()
+if args.workflow_run <= 0:
+    parser.error('--workflow-run must be a positive numeric GitHub Actions run ID')
+workflow_url=f'https://github.com/by-jsk/stellarium-android/actions/runs/{args.workflow_run}'
 version=json.loads((root/'version.json').read_text())
 name=version['versionName']
 release=root/'release'
@@ -31,10 +36,19 @@ upgrade=json.loads((args.evidence/'upgrade-report.json').read_text(encoding='utf
 pages=json.loads((args.evidence.parent/'smoke-16k/report.json').read_text(encoding='utf-8'))
 assert pages['passed'] and pages['android_page_size']==16384,'16-KiB runtime verification must pass'
 assert runtime['passed'] and upgrade['passed'],'Execution and installer upgrade must pass'
-assert runtime['versionCode']==version['versionCode']
-assert upgrade['installed_versionCode']==version['versionCode']
+# [20261126 by jsk] 두 에뮬레이터에서 후보 버전과 별자리 선 표시, 배색, 적색 전환을 대조함.
+for report in (runtime, pages):
+    assert report['versionCode']==version['versionCode'],'Runtime evidence must match the release version'
+    assert report['constellation_lines_visible_by_default'] is True,'Constellation lines must be enabled'
+    assert report['constellation_line_palette_applied'] is True,'Constellation line palette must be applied'
+    assert report['night_button_round_trip'] is True,'The night button must switch on and off safely'
+    assert report['night_non_red_fraction']<0.005 and report['night_visible_red_pixels']>200
+    assert report['rendered_sky_center_red_pixels']>100,'Rendered red sky must be present outside the menu'
+previous_code=upgrade['previous_versionCode']
+installed_code=upgrade['installed_versionCode']
+assert type(previous_code) is int and previous_code==version['versionCode']-1
+assert type(installed_code) is int and installed_code==version['versionCode']
 assert upgrade['system_install_confirmed'] and upgrade['system_install_completed'] and upgrade['language_preserved']=='ko' and upgrade['region_preserved']=='JP'
-assert runtime['night_non_red_fraction']<0.005 and runtime['night_visible_red_pixels']>200
 signer=Path(str(apk)+'.signer.txt').read_text(encoding='utf-8-sig')
 assert ('Verified using v2 scheme (APK Signature Scheme v2): true' in signer or
         'Verified using v3 scheme (APK Signature Scheme v3): true' in signer)
@@ -43,12 +57,12 @@ assert f"name='{version['packageId']}'" in badging
 assert f"versionCode='{version['versionCode']}'" in badging
 base=f'https://github.com/by-jsk/app-downloads/releases/download/stellar-touch-v{name}'
 notes={
-    'ko':'Stellarium PC 엔진의 독립 Android 이식 시험판. 한글·6개 언어, 적색 야간 모드·밝기, 터치 검색·시간·위치, 필요할 때 플러그인 불러오기와 앱 내 업데이트.',
-    'en':'Independent Android preview of the Stellarium PC engine. Six languages, red night vision and brightness, touch search/time/location, on-demand plugins and in-app updates.',
-    'ja':'Stellarium PC エンジンの独立 Android 試用版。6 言語、赤色夜間表示と明るさ、タッチ検索・時刻・位置、必要時のプラグイン読み込み、アプリ内更新。',
-    'zh':'Stellarium PC 引擎的独立 Android 预览版。六种语言、红色夜间模式与亮度、触控搜索/时间/位置、按需加载插件及应用内更新。',
-    'es':'Vista previa independiente para Android del motor de Stellarium PC. Seis idiomas, modo nocturno rojo y brillo, búsqueda/hora/ubicación táctiles, complementos bajo demanda y actualizaciones integradas.',
-    'ru':'Независимая предварительная Android-версия движка Stellarium PC. Шесть языков, красный ночной режим и яркость, сенсорные поиск/время/место, плагины по запросу и обновления в приложении.'
+    'ko':'적색 모드 전환 중 앱이 종료되는 문제를 수정하고 별자리 선을 밝은 하늘색으로 바꿨습니다. 메뉴 숨기기와 복원, 성도 글자 크기 조절, 천체 설명 닫기를 추가했습니다.',
+    'en':'Fixed a crash when switching red night mode and made constellation lines bright sky blue. Added controls to hide and restore menus, resize chart text, and close object details.',
+    'ja':'赤色の夜間モードを切り替えるとアプリが終了する不具合を修正し、星座線を明るい空色にしました。メニューの表示切替、星図の文字サイズ調整、天体情報を閉じる操作を追加しました。',
+    'zh':'修复了切换红色夜间模式时的闪退，将星座连线改为明亮的天蓝色。新增隐藏和恢复菜单、调整星图文字大小以及关闭天体信息的功能。',
+    'es':'Se corrigió un cierre al cambiar el modo nocturno rojo y se aclararon a azul celeste las líneas de las constelaciones. Ahora puedes ocultar y mostrar los menús, ajustar el tamaño del texto de la carta celeste y cerrar la ficha del objeto.',
+    'ru':'Исправлено аварийное завершение при переключении красного ночного режима, линии созвездий стали ярко-голубыми. Теперь можно скрывать и возвращать меню, менять размер текста на карте неба и закрывать сведения об объекте.'
 }
 metadata={'versionCode':version['versionCode'],'versionName':name,'apk':base+'/'+apk.name,'notes':notes}
 (release/'stellar-touch.json').write_text(json.dumps(metadata,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
@@ -65,11 +79,20 @@ Stellarium PC의 실제 C++/Qt 엔진을 사용하는 독립 이식판입니다.
 
 Android 9 이상, ARM64, OpenGL ES 3.0이 필요합니다. 처음 예시 위치는 서울이므로 관측 전에 위치 또는 GPS를 설정하세요. 메인 R 버튼은 야간 모드, 설정의 현장 관측 항목은 밝기·화면 유지·성능 모드입니다. 패널은 오른쪽 위 × 버튼으로 닫습니다.
 
-검증: ARM64 빌드·서명·패키지·16KB ELF/ZIP 정렬 검사, Android 16 x86_64에서 실제 천체 로딩·관측지 도시 DB·시간/시간대·6개 언어/지역·설정 순서·플러그인 로드·적색 화면 검사, Android 15의 실제 16KB 페이지 에뮬레이터 실행 검사, 이전 버전 코드 0 → 1의 메타데이터 확인·다운로드·시스템 설치·설정 유지 검사. 업데이트 동작 검사는 일회용 CI 서명과 로컬 서버를 사용하며, 배포 APK는 별도 고정 배포키로 서명했습니다. Galaxy S25 실기기 성능과 모든 플러그인·망원경·온라인 서비스의 현장 검증은 완료되지 않았습니다.
+## 이번 버전 변경 사항
+
+{notes['ko']}
+
+## 검증
+
+- ARM64 APK의 패키지·서명·16KB ELF/ZIP 정렬을 확인했습니다.
+- Android 16과 실제 16KB 페이지 Android 15 에뮬레이터에서 천체 로딩, 별자리 선 기본 표시·배색, R 버튼 왕복 전환, 적색 화면을 확인했습니다.
+- 에뮬레이터에서 버전 코드 {previous_code} → {installed_code} 업데이트를 실행하고 시스템 설치 완료와 기존 언어·지역 설정 유지를 확인했습니다. 설치 시험은 일회용 CI 서명과 로컬 서버를 사용했고, 배포 APK는 고정 배포키로 서명했습니다.
+- Galaxy S25 실기기 성능과 플러그인·망원경·온라인 서비스의 현장 동작은 별도 확인이 필요합니다.
 
 Windows 전용 ASCOM/Spout·PC Oculus와 Android GLES가 지원하지 않는 ShowMySky 고급 대기는 제공하지 않습니다. 기본 대기 모델을 사용합니다. 운영체제의 권한·키보드·설치 창은 Android가 표시합니다.
 
-[실행·업데이트 시험 보고서와 화면]({base}/verification-v{name}.zip) · [통과한 GitHub Actions 실행](https://github.com/by-jsk/stellarium-android/actions/runs/45630238047)
+[실행·업데이트 시험 보고서와 화면]({base}/verification-v{name}.zip) · [GitHub Actions 검증 실행]({workflow_url})
 
 GPLv3 및 데이터별 라이선스를 따릅니다. [대응 소스 전체]({base}/{source.name}), [모바일 소스와 빌드 방법](https://github.com/by-jsk/stellarium-android), [Qt 6.10.2 대응 소스](https://download.qt.io/archive/qt/6.10/6.10.2/single/), [FFmpeg n7.1.2 대응 소스](https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n7.1.2.tar.gz), [구성요소별 고지 및 빌드 출처](https://github.com/by-jsk/stellarium-android/blob/main/THIRD-PARTY.md).
 '''

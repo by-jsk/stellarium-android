@@ -17,9 +17,12 @@ import tempfile
 import threading
 import time
 import xml.etree.ElementTree as ET
-from android_test_adb import adb,app_crashed
+from android_test_adb import adb,app_crashed,report_from_log
 
-package='org.byjsk.stellartouch'
+version=json.loads((Path(__file__).resolve().parents[1]/'version.json').read_text())
+code=version['versionCode']
+apk_name=f"StellarTouch-v{version['versionName']}.apk"
+package=version['packageId']
 activity=package+'/'+package+'.StellarActivity'
 out=Path(os.environ.get('STELLAR_EVIDENCE_DIR','release/smoke'))
 out.mkdir(parents=True,exist_ok=True)
@@ -46,8 +49,8 @@ def wait_marker(marker,seconds=150):
     while time.monotonic()<deadline:
         logs=adb('logcat','-d','-v','brief')
         (out/'upgrade-logcat.txt').write_text(logs,encoding='utf-8')
-        found=re.search(re.escape(marker)+r'\s+(\{[^\n]*\})',logs)
-        if found:return json.loads(found[1])
+        report=report_from_log(logs,marker)
+        if report is not None:return report
         if app_crashed(logs,app_pid):raise AssertionError('Upgrade fixture crashed')
         time.sleep(2)
     raise AssertionError('Timed out waiting for '+marker)
@@ -58,7 +61,7 @@ launch('stellarSmokeTest')
 seed=wait_marker('STELLAR_SMOKE_DONE')
 assert seed['passed'],seed
 print('Previous-version engine and independent Korean/Japan preferences verified',flush=True)
-assert 'versionCode=0' in adb('shell','dumpsys','package',package)
+assert re.search(rf'versionCode={code-1}\s',adb('shell','dumpsys','package',package))
 adb('shell','appops','set',package,'REQUEST_INSTALL_PACKAGES','allow')
 adb('shell','settings','put','global','package_verifier_enable','0')
 
@@ -69,10 +72,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 with tempfile.TemporaryDirectory(prefix='stellar-upgrade-') as directory:
     folder=Path(directory)
-    shutil.copyfile(candidate,folder/'StellarTouch-v0.1.0.apk')
+    shutil.copyfile(candidate,folder/apk_name)
     (folder/'stellar-touch.json').write_text(json.dumps({
-        'versionCode':1,'versionName':'0.1.0',
-        'apk':'http://10.0.2.2:8765/StellarTouch-v0.1.0.apk',
+        'versionCode':code,'versionName':version['versionName'],
+        'apk':f'http://10.0.2.2:8765/{apk_name}',
         'notes':{'en':'Update preservation test','ko':'업데이트 보존 검사'}
     }),encoding='utf-8')
     server=http.server.ThreadingHTTPServer(('0.0.0.0',8765),functools.partial(Handler,directory=directory))
@@ -95,7 +98,7 @@ with tempfile.TemporaryDirectory(prefix='stellar-upgrade-') as directory:
             finished=[node for node in nodes if node.get('package')=='com.google.android.packageinstaller'
                       and node.get('text','').lower() in ('done','open','완료','열기')
                       and node.get('enabled')=='true' and node.get('clickable')=='true']
-            if re.search(r'versionCode=1\s',installed) and finished:
+            if re.search(rf'versionCode={code}\s',installed) and finished:
                 (out/'upgrade-completed.png').write_bytes(adb('exec-out','screencap','-p',binary=True))
                 completed=True
                 for node in finished:
@@ -103,7 +106,7 @@ with tempfile.TemporaryDirectory(prefix='stellar-upgrade-') as directory:
                         bounds=list(map(int,re.findall(r'\d+',node.attrib['bounds'])))
                         adb('shell','input','tap',str((bounds[0]+bounds[2])//2),str((bounds[1]+bounds[3])//2))
                         break
-                print('Android installer completed; versionCode=1 confirmed',flush=True)
+                print(f'Android installer completed; versionCode={code} confirmed',flush=True)
                 break
             for node in nodes:
                 if node.get('text','').lower() in ('install','update','설치','업데이트') and node.get('clickable')=='true' and node.get('enabled')=='true':
@@ -112,11 +115,11 @@ with tempfile.TemporaryDirectory(prefix='stellar-upgrade-') as directory:
                     adb('shell','input','tap',str((bounds[0]+bounds[2])//2),str((bounds[1]+bounds[3])//2))
                     prompted=True
             time.sleep(2)
-        else:raise AssertionError('Android package installer did not upgrade to versionCode=1')
+        else:raise AssertionError(f'Android package installer did not upgrade to versionCode={code}')
         assert prompted,'No system installation confirmation was observed'
         assert completed,'The system installer must finish before relaunching the app'
         assert '/stellar-touch.json' in requests,'Update screen did not fetch metadata'
-        assert '/StellarTouch-v0.1.0.apk' in requests,'DownloadManager did not fetch the APK'
+        assert f'/{apk_name}' in requests,'DownloadManager did not fetch the APK'
     finally:
         server.shutdown();server.server_close()
 
@@ -125,7 +128,7 @@ after=wait_marker('STELLAR_SMOKE_DONE')
 assert after['passed'],after
 assert after['persisted_language_at_launch']=='ko',after
 assert after['persisted_region_at_launch']=='JP',after
-report={'passed':True,'previous_versionCode':0,'installed_versionCode':1,
+report={'passed':True,'previous_versionCode':code-1,'installed_versionCode':code,
         'metadata_detected':True,'apk_downloaded':True,'system_install_confirmed':prompted,
         'system_install_completed':completed,
         'language_preserved':'ko','region_preserved':'JP','same_signer_required':True,
