@@ -36,6 +36,8 @@ upgrade=json.loads((args.evidence/'upgrade-report.json').read_text(encoding='utf
 pages=json.loads((args.evidence.parent/'smoke-16k/report.json').read_text(encoding='utf-8'))
 assert pages['passed'] and pages['android_page_size']==16384,'16-KiB runtime verification must pass'
 assert runtime['passed'] and upgrade['passed'],'Execution and installer upgrade must pass'
+# [20261126 by jsk] 업데이트 화면에 직접 진입한 이전 시험 결과로는 배포를 준비하지 않음.
+assert upgrade.get('opened_from_settings_button') is True,'Update must be tested by tapping the settings button'
 # [20261126 by jsk] 두 에뮬레이터에서 후보 버전과 별자리 선 표시, 배색, 적색 전환을 대조함.
 for report in (runtime, pages):
     assert report['versionCode']==version['versionCode'],'Runtime evidence must match the release version'
@@ -57,12 +59,12 @@ assert f"name='{version['packageId']}'" in badging
 assert f"versionCode='{version['versionCode']}'" in badging
 base=f'https://github.com/by-jsk/app-downloads/releases/download/stellar-touch-v{name}'
 notes={
-    'ko':'적색 모드 전환 중 앱이 종료되는 문제를 수정하고 별자리 선을 밝은 하늘색으로 바꿨습니다. 메뉴 숨기기와 복원, 성도 글자 크기 조절, 천체 설명 닫기를 추가했습니다.',
-    'en':'Fixed a crash when switching red night mode and made constellation lines bright sky blue. Added controls to hide and restore menus, resize chart text, and close object details.',
-    'ja':'赤色の夜間モードを切り替えるとアプリが終了する不具合を修正し、星座線を明るい空色にしました。メニューの表示切替、星図の文字サイズ調整、天体情報を閉じる操作を追加しました。',
-    'zh':'修复了切换红色夜间模式时的闪退，将星座连线改为明亮的天蓝色。新增隐藏和恢复菜单、调整星图文字大小以及关闭天体信息的功能。',
-    'es':'Se corrigió un cierre al cambiar el modo nocturno rojo y se aclararon a azul celeste las líneas de las constelaciones. Ahora puedes ocultar y mostrar los menús, ajustar el tamaño del texto de la carta celeste y cerrar la ficha del objeto.',
-    'ru':'Исправлено аварийное завершение при переключении красного ночного режима, линии созвездий стали ярко-голубыми. Теперь можно скрывать и возвращать меню, менять размер текста на карте неба и закрывать сведения об объекте.'
+    'ko':'설정에서 업데이트를 눌렀을 때 앱이 종료되는 문제를 수정했습니다. 확인이 끝나면 진행 문구를 결과로 바꿉니다. 적색 모드 전환 중 앱이 종료되는 문제를 수정하고 별자리 선을 밝은 하늘색으로 바꿨습니다. 메뉴 숨기기와 복원, 성도 글자 크기 조절, 천체 설명 닫기를 추가했습니다.',
+    'en':'Fixed a crash when opening Updates from Settings and clarified the update status. Fixed a crash when switching red night mode and made constellation lines bright sky blue. Added controls to hide and restore menus, resize chart text, and close object details.',
+    'ja':'設定から更新を開く際にアプリが終了する不具合を修正し、更新状態の表示を改善しました。赤色の夜間モードを切り替えるとアプリが終了する不具合を修正し、星座線を明るい空色にしました。メニューの表示切替、星図の文字サイズ調整、天体情報を閉じる操作を追加しました。',
+    'zh':'修复了从设置打开更新时的闪退，并改进了更新状态的提示。修复了切换红色夜间模式时的闪退，将星座连线改为明亮的天蓝色。新增隐藏和恢复菜单、调整星图文字大小以及关闭天体信息的功能。',
+    'es':'Se corrigió un cierre al abrir Actualizaciones desde Ajustes y se aclaró el estado de la actualización. Se corrigió un cierre al cambiar el modo nocturno rojo y se aclararon a azul celeste las líneas de las constelaciones. Ahora puedes ocultar y mostrar los menús, ajustar el tamaño del texto de la carta celeste y cerrar la ficha del objeto.',
+    'ru':'Исправлен сбой при открытии обновления из настроек и уточнена индикация его статуса. Исправлено аварийное завершение при переключении красного ночного режима, линии созвездий стали ярко-голубыми. Теперь можно скрывать и возвращать меню, менять размер текста на карте неба и закрывать сведения об объекте.'
 }
 metadata={'versionCode':version['versionCode'],'versionName':name,'apk':base+'/'+apk.name,'notes':notes}
 (release/'stellar-touch.json').write_text(json.dumps(metadata,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
@@ -74,6 +76,8 @@ for file in (apk,source):
 body=f'''# 별하늘 · Stellar Touch v{name} — Android 시험판
 
 [갤럭시 S25용 ARM64 APK 다운로드]({base}/{apk.name}) · 약 {apk.stat().st_size/1024/1024:.0f} MiB
+
+v0.1.0에서 업데이트 메뉴가 앱을 종료시키면 위 APK를 받아 기존 앱 위에 설치하세요. 기존 앱을 유지한 채 설치하면 설정이 보존됩니다.
 
 Stellarium PC의 실제 C++/Qt 엔진을 사용하는 독립 이식판입니다. 공식 Stellarium Mobile 제품이 아닙니다. 한국어·영어·일본어·중국어·스페인어·러시아어, 국가/언어 분리, 적색 야간 화면·밝기 조절, 터치 검색·시간·위치 및 필요할 때 불러오는 플러그인을 제공합니다.
 
@@ -87,7 +91,7 @@ Android 9 이상, ARM64, OpenGL ES 3.0이 필요합니다. 처음 예시 위치�
 
 - ARM64 APK의 패키지·서명·16KB ELF/ZIP 정렬을 확인했습니다.
 - Android 16과 실제 16KB 페이지 Android 15 에뮬레이터에서 천체 로딩, 별자리 선 기본 표시·배색, R 버튼 왕복 전환, 적색 화면을 확인했습니다.
-- 에뮬레이터에서 버전 코드 {previous_code} → {installed_code} 업데이트를 실행하고 시스템 설치 완료와 기존 언어·지역 설정 유지를 확인했습니다. 설치 시험은 일회용 CI 서명과 로컬 서버를 사용했고, 배포 APK는 고정 배포키로 서명했습니다.
+- 에뮬레이터에서 설정의 업데이트 버튼을 눌러 버전 코드 {previous_code} → {installed_code} 업데이트를 실행하고 시스템 설치 완료와 기존 언어·지역 설정 유지를 확인했습니다. 설치 시험은 일회용 CI 서명과 로컬 서버를 사용했고, 배포 APK는 고정 배포키로 서명했습니다.
 - Galaxy S25 실기기 성능과 플러그인·망원경·온라인 서비스의 현장 동작은 별도 확인이 필요합니다.
 
 Windows 전용 ASCOM/Spout·PC Oculus와 Android GLES가 지원하지 않는 ShowMySky 고급 대기는 제공하지 않습니다. 기본 대기 모델을 사용합니다. 운영체제의 권한·키보드·설치 창은 Android가 표시합니다.
