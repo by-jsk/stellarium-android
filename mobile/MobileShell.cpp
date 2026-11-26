@@ -128,7 +128,7 @@ MobileShell::MobileShell(QGraphicsWidget* parent, SkyGui* skyGui) : QObject(pare
 #ifdef STELLAR_CI_FIXTURE
     if(androidContext().callMethod<jboolean>("isUpgradeTest")) {
         // [20261126 by jsk] 업데이트 페이지는 실제 설정 버튼 입력으로 진입하도록 시험 경로를 변경함.
-        QTimer::singleShot(2000, this, [this]{ settings(); });
+        QTimer::singleShot(2000, this, [this]{ this->settings(); });
         return;
     }
 #endif
