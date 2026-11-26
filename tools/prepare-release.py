@@ -13,10 +13,14 @@ parser=argparse.ArgumentParser()
 parser.add_argument('--evidence',type=Path,required=True)
 parser.add_argument('--workflow-run', type=int, required=True,
                     help='GitHub Actions run ID that produced the supplied build and test evidence')
+parser.add_argument('--16k-workflow-run', type=int, dest='page_run',
+                    help='Separate 16-KiB retry using the same verified APK inputs')
 args=parser.parse_args()
-if args.workflow_run <= 0:
-    parser.error('--workflow-run must be a positive numeric GitHub Actions run ID')
+if args.workflow_run <= 0 or (args.page_run is not None and args.page_run <= 0):
+    parser.error('Workflow run IDs must be positive integers')
 workflow_url=f'https://github.com/by-jsk/stellarium-android/actions/runs/{args.workflow_run}'
+page_run_link = (f' · [16KB 재검증](https://github.com/by-jsk/stellarium-android/actions/runs/{args.page_run})'
+                 if args.page_run is not None else '')
 version=json.loads((root/'version.json').read_text())
 name=version['versionName']
 release=root/'release'
@@ -98,7 +102,7 @@ Android 9 이상, ARM64, OpenGL ES 3.0이 필요합니다. 처음 예시 위치�
 
 Windows 전용 ASCOM/Spout·PC Oculus와 Android GLES가 지원하지 않는 ShowMySky 고급 대기는 제공하지 않습니다. 기본 대기 모델을 사용합니다. 운영체제의 권한·키보드·설치 창은 Android가 표시합니다.
 
-[실행·업데이트 시험 보고서와 화면]({base}/verification-v{name}.zip) · [GitHub Actions 검증 실행]({workflow_url})
+[실행·업데이트 시험 보고서와 화면]({base}/verification-v{name}.zip) · [빌드·Android 16·업데이트 검증]({workflow_url}){page_run_link}
 
 GPLv3 및 데이터별 라이선스를 따릅니다. [대응 소스 전체]({base}/{source.name}), [모바일 소스와 빌드 방법](https://github.com/by-jsk/stellarium-android), [Qt 6.10.2 대응 소스](https://download.qt.io/archive/qt/6.10/6.10.2/single/), [FFmpeg n7.1.2 대응 소스](https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n7.1.2.tar.gz), [구성요소별 고지 및 빌드 출처](https://github.com/by-jsk/stellarium-android/blob/main/THIRD-PARTY.md).
 '''

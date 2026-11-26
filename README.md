@@ -2,11 +2,13 @@
 
 Stellarium PC의 실제 C++/Qt 엔진을 Android에 이식하는 독립 GPL 프로젝트입니다. 공식 Stellarium Mobile 제품이 아니며 Stellarium 개발팀의 보증이나 제휴를 주장하지 않습니다.
 
-**[갤럭시 S25용 ARM64 APK 다운로드 · v0.1.0 시험판](https://github.com/by-jsk/app-downloads/releases/download/stellar-touch-v0.1.0/StellarTouch-v0.1.0.apk)** · 약 535 MiB · Android 9 이상 / OpenGL ES 3.0
+**[갤럭시 S25용 ARM64 APK 다운로드 · v0.1.1 시험판](https://github.com/by-jsk/app-downloads/releases/download/stellar-touch-v0.1.1/StellarTouch-v0.1.1.apk)** · 약 535 MiB · Android 9 이상 / OpenGL ES 3.0
 
-[릴리스·대응 소스·검사 보고서](https://github.com/by-jsk/app-downloads/releases/tag/stellar-touch-v0.1.0) · [검증 결과](docs/verification/v0.1.0/README.md)
+[릴리스·대응 소스·검사 보고서](https://github.com/by-jsk/app-downloads/releases/tag/stellar-touch-v0.1.1)
 
-Android 16 일반 에뮬레이터와 Android 15의 실제 16KB 페이지 에뮬레이터에서 실행·적색 화면·언어/지역을 검증했습니다. 앱 내 다운로드와 Android 설치 확인을 거친 이전 버전 코드 0 → 1 업데이트 및 설정 유지도 통과했습니다. Galaxy S25 실기기 성능과 모든 플러그인·외부 장치의 현장 동작까지 검증했다는 의미는 아닙니다.
+v0.1.1은 설정의 업데이트 화면과 적색 모드 전환에서 생기던 앱 종료를 수정합니다. 밝은 별자리 선, 메뉴 숨기기와 복원, 성도 글자 크기 조절, 천체 설명 닫기를 추가했습니다. v0.1.0에서 업데이트 메뉴를 열 때 앱이 닫히면 위 APK를 기존 앱 위에 설치하세요.
+
+Android 16과 실제 16KB 페이지 Android 15 에뮬레이터에서 실행·적색 화면·언어/지역을 확인했습니다. 같은 시험용 서명으로 버전 코드 1 → 2 설치와 기존 설정 보존을 검증했고, 배포 APK는 v0.1.0에 사용한 키로 서명했습니다. Galaxy S25 실기기 성능과 플러그인·외부 장치의 현장 동작은 추가 확인이 필요합니다.
 
 ## 구조와 빌드
 
