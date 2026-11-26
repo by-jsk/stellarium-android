@@ -54,9 +54,11 @@ assert upgrade['system_install_confirmed'] and upgrade['system_install_completed
 signer=Path(str(apk)+'.signer.txt').read_text(encoding='utf-8-sig')
 assert ('Verified using v2 scheme (APK Signature Scheme v2): true' in signer or
         'Verified using v3 scheme (APK Signature Scheme v3): true' in signer)
+assert 'Signer #1 certificate SHA-256 digest: f34938b293e28c78cc0bbd1c9730aa098b0d604ecf6990bb0f04168a89a99d68' in signer, 'Certificate must match the previous public release'
 badging=Path(str(apk)+'.badging.txt').read_text(encoding='utf-8-sig')
 assert f"name='{version['packageId']}'" in badging
 assert f"versionCode='{version['versionCode']}'" in badging
+assert f"versionName='{name}'" in badging
 base=f'https://github.com/by-jsk/app-downloads/releases/download/stellar-touch-v{name}'
 notes={
     'ko':'설정에서 업데이트를 눌렀을 때 앱이 종료되는 문제를 수정했습니다. 확인이 끝나면 진행 문구를 결과로 바꿉니다. 적색 모드 전환 중 앱이 종료되는 문제를 수정하고 별자리 선을 밝은 하늘색으로 바꿨습니다. 메뉴 숨기기와 복원, 성도 글자 크기 조절, 천체 설명 닫기를 추가했습니다.',

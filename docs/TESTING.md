@@ -52,8 +52,8 @@ release permits the exact public HTTPS release URL.
 `tools/fixture-apk.py` sets the Android manifest version code to the preceding code.
 The workflow signs this previous-version fixture and candidate with the same
 ephemeral CI key. `tools/test-upgrade.py` installs the fixture, seeds Korean and
-Japan as independent preferences, opens the actual update screen, taps its
-install control, observes a DownloadManager transfer and confirms Android's
+Japan as independent preferences, taps Updates in Settings and the download
+button, observes a DownloadManager transfer and confirms Android's
 system installer. It then verifies the candidate version code and retained preferences.
 The test waits for the installer's completed screen, closes it, and waits for
 the old process to stop before relaunching the upgraded app. A PackageManager
@@ -68,8 +68,15 @@ retain the package's data.
 
 `tools/sign-apk.ps1` aligns the unsigned ARM64 APK, signs with the existing local
 key, verifies its certificate and alignment, checks package identity and emits
-the SHA-256 digest. No workflow receives the distribution key. Source packaging
-excludes `.secrets`, keystores, caches and build outputs.
+the SHA-256 digest. Source packaging excludes `.secrets`, keystores, caches and
+build outputs.
+
+The `Sign verified Android release` workflow can sign a tested ARM64 artifact
+from a successful `main` build. A repository owner dispatches it from `main`
+using the build's run ID. The `stellar-release` environment allows `main` only
+and expects the encrypted `STELLAR_KEYSTORE_B64` and `STELLAR_SIGN_PASSWORD`
+secrets. The signing step checks the published certificate fingerprint and
+uploads the signed APK with its provenance and verification reports.
 
 Run `python3 tools/prepare-release.py --evidence release/smoke --workflow-run <run-id>`
 with the successful run's APK, corresponding source and both emulator reports.
