@@ -83,8 +83,11 @@ with tempfile.TemporaryDirectory(prefix='stellar-upgrade-') as directory:
     worker=threading.Thread(target=server.serve_forever,daemon=True);worker.start()
     try:
         launch('stellarUpgradeTest')
+        # [20261126 by jsk] 설정 화면의 업데이트 버튼을 눌러 터치 처리 중 화면 교체 오류를 검증함.
+        update_button=wait_marker('STELLAR_UPDATE_SETTINGS_BUTTON')
+        adb('shell','input','tap',str(update_button['x']),str(update_button['y']))
         offered=wait_marker('STELLAR_UPDATE_OFFERED')
-        print('Real update screen offered the candidate',flush=True)
+        print('Settings update button opened the update screen and offered the candidate',flush=True)
         (out/'upgrade-offer.png').write_bytes(adb('exec-out','screencap','-p',binary=True))
         adb('shell','input','tap',str(offered['x']),str(offered['y']))
         deadline=time.monotonic()+180
@@ -130,6 +133,7 @@ assert after['passed'],after
 assert after['persisted_language_at_launch']=='ko',after
 assert after['persisted_region_at_launch']=='JP',after
 report={'passed':True,'previous_versionCode':code-1,'installed_versionCode':code,
+        'opened_from_settings_button':True,
         'metadata_detected':True,'apk_downloaded':True,'system_install_confirmed':prompted,
         'system_install_completed':completed,
         'language_preserved':'ko','region_preserved':'JP','same_signer_required':True,

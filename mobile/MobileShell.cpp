@@ -54,6 +54,20 @@ QSettings::SettingsMap readMobileSettings(const QString& path)
     }
     return values;
 }
+
+#ifdef STELLAR_CI_FIXTURE
+// [20261126 by jsk] Qt 화면의 버튼 중심을 Android 터치 좌표로 변환함.
+void reportUpdateButton(const char* marker, QGraphicsProxyWidget* page, QPushButton* button)
+{
+    auto& view = StelMainView::getInstance();
+    const auto center = button->mapTo(page->widget(), button->rect().center());
+    const auto point = view.mapToGlobal(view.mapFromScene(page->mapToScene(center)));
+    const auto ratio = view.devicePixelRatioF();
+    qInfo().noquote() << marker << QJsonDocument(QJsonObject{
+        {"x", qRound(point.x()*ratio)}, {"y", qRound(point.y()*ratio)}
+    }).toJson(QJsonDocument::Compact);
+}
+#endif
 }
 
 void MobileShell::prepare()
@@ -113,7 +127,9 @@ MobileShell::MobileShell(QGraphicsWidget* parent, SkyGui* skyGui) : QObject(pare
 #ifdef Q_OS_ANDROID
 #ifdef STELLAR_CI_FIXTURE
     if(androidContext().callMethod<jboolean>("isUpgradeTest")) {
-        QTimer::singleShot(2000,this,[this]{updates();});return;
+        // [20261126 by jsk] 업데이트 페이지는 실제 설정 버튼 입력으로 진입하도록 시험 경로를 변경함.
+        QTimer::singleShot(2000, this, [this]{ settings(); });
+        return;
     }
 #endif
     if(androidContext().callMethod<jboolean>("isSmokeTest"))
@@ -356,10 +372,25 @@ void MobileShell::addText(const QString& text) {auto l=new QLabel(text); l->setW
 void MobileShell::action(const QString& id) {if(auto a=StelApp::getInstance().getStelActionManager()->findAction(id)) {if(panel)panel->hide(); a->trigger();}}
 void MobileShell::settings() {
     page("settings");addButton("?  "+trm("help"),[this]{help();});addButton("ⓘ  "+trm("about"),[this]{about();});addButton("文  "+trm("languages"),[this]{languages();});
-    auto update=addButton(trm("update"),[this]{updates();});
+    const QPointer<QGraphicsProxyWidget> settingsPage = panel;
+    // [20261126 by jsk] 설정 버튼의 터치 해제가 끝난 뒤 기존 화면을 교체함.
+    auto update = addButton(trm("update"), [this, settingsPage] {
+        QTimer::singleShot(0, this, [this, settingsPage] {
+            if (settingsPage && settingsPage == panel && settingsPage->isVisible()) updates();
+        });
+    });
     QPixmap image(64,64);image.fill(Qt::transparent);
     {QPainter painter(&image);painter.setRenderHint(QPainter::Antialiasing);painter.setPen(QPen(QColor("#eff5ff"),5,Qt::SolidLine,Qt::RoundCap,Qt::RoundJoin));painter.drawArc(QRectF(12,12,40,40),45*16,285*16);painter.drawLine(QPointF(48,10),QPointF(48,27));painter.drawLine(QPointF(48,27),QPointF(32,27));}
     update->setIcon(QIcon(image));update->setIconSize(QSize(24,24));addButton(trm("observing"),[this]{observing();});
+#ifdef STELLAR_CI_FIXTURE
+    if (androidContext().callMethod<jboolean>("isUpgradeTest")) {
+        QTimer::singleShot(500, this, [this, settingsPage, button=QPointer<QPushButton>(update)] {
+            if (button && settingsPage == panel && settingsPage->isVisible()) {
+                reportUpdateButton("STELLAR_UPDATE_SETTINGS_BUTTON", settingsPage, button);
+            }
+        });
+    }
+#endif
 }
 void MobileShell::help() {page("help"); addText(trm("guide"));}
 void MobileShell::about() {page("about");addText(QString("Stellar Touch %1").arg(STELLAR_VERSION_NAME)); addText(trm("description")); addText(trm("license")); addButton(trm("source"),[]{QDesktopServices::openUrl(QUrl("https://github.com/by-jsk/stellarium-android"));}); addButton(trm("desktopSettings"),[this]{action("actionShow_Configuration_Window_Global");});}
@@ -544,15 +575,22 @@ void MobileShell::plugins()
 }
 void MobileShell::updates()
 {
-    page("update"); addText(trm("checking"));
-    auto status=new QLabel; status->setWordWrap(true);body->addWidget(status);QPointer<QLabel> result=status;
+    page("update");
+    // [20261126 by jsk] 조회 중과 최종 결과를 같은 위치에 표시하고 닫힌 화면의 응답을 무시함.
+    const QPointer<QGraphicsProxyWidget> updatePage = panel;
+    auto status = new QLabel(trm("checking"));
+    status->setWordWrap(true);
+    status->setTextFormat(Qt::PlainText);
+    body->addWidget(status);
+    const QPointer<QLabel> result = status;
     QUrl metadata("https://raw.githubusercontent.com/by-jsk/app-downloads/main/updates/stellar-touch.json");
 #ifdef STELLAR_CI_FIXTURE
     if(androidContext().callMethod<jboolean>("isUpgradeTest"))metadata=QUrl("http://10.0.2.2:8765/stellar-touch.json");
 #endif
     auto network=new QNetworkAccessManager(this);QNetworkRequest request(metadata);request.setTransferTimeout(20000);
     auto reply=network->get(request);
-    connect(reply,&QNetworkReply::finished,this,[this,reply,network,result]{auto data=reply->readAll();const auto error=reply->error();reply->deleteLater();network->deleteLater();if(!result)return;
+    connect(reply,&QNetworkReply::finished,this,[this,reply,network,result,updatePage]{auto data=reply->readAll();const auto error=reply->error();reply->deleteLater();network->deleteLater();
+        if (!result || !updatePage || updatePage != panel || !updatePage->isVisible()) return;
         if(error!=QNetworkReply::NoError){result->setText(trm("updateError"));return;}auto info=QJsonDocument::fromJson(data).object();const int code=info.value("versionCode").toInt();const auto ver=info.value("versionName").toString();const auto apk=info.value("apk").toString();
         int installed=STELLAR_VERSION_CODE;
 #ifdef Q_OS_ANDROID
@@ -566,7 +604,7 @@ void MobileShell::updates()
 #endif
         if(!fixture&&(!QRegularExpression("^[0-9]+\\.[0-9]+\\.[0-9]+$").match(ver).hasMatch()||apk!=expected)){result->setText(trm("updateError"));return;}
         const auto notes=info.value("notes");const auto text=notes.isObject()?notes.toObject().value(language).toString(notes.toObject().value("en").toString()):notes.toString();result->setText(ver+"\n"+text);
-        addButton(trm("installUpdate"),[this,apk,code]{
+        [[maybe_unused]] auto installButton = addButton(trm("installUpdate"),[this,apk,code]{
 #ifdef Q_OS_ANDROID
             auto context=androidContext();
             context.callMethod<void>("downloadUpdate","(Ljava/lang/String;ILjava/lang/String;)V",QJniObject::fromString(apk).object<jstring>(),jint(code),QJniObject::fromString(QString::fromUtf8(QJsonDocument(strings.value(language).toObject()).toJson(QJsonDocument::Compact))).object<jstring>());
@@ -575,12 +613,9 @@ void MobileShell::updates()
 #endif
         });
 #ifdef STELLAR_CI_FIXTURE
-        if(fixture)QTimer::singleShot(500,this,[this]{
-            const auto buttons=content->findChildren<QPushButton*>();
-            for(auto b:buttons)if(b->text().contains(trm("installUpdate"))){
-                const auto point=StelMainView::getInstance().mapToGlobal(StelMainView::getInstance().mapFromScene(panel->mapToScene(b->mapTo(panel->widget(),b->rect().center()))));
-                const auto ratio=StelMainView::getInstance().devicePixelRatioF();
-                qInfo().noquote()<<"STELLAR_UPDATE_OFFERED "<<QJsonDocument(QJsonObject{{"x",qRound(point.x()*ratio)},{"y",qRound(point.y()*ratio)}}).toJson(QJsonDocument::Compact);
+        if(fixture)QTimer::singleShot(500,this,[this,updatePage,button=QPointer<QPushButton>(installButton)]{
+            if (button && updatePage == panel && updatePage->isVisible()) {
+                reportUpdateButton("STELLAR_UPDATE_OFFERED", updatePage, button);
             }
         });
 #endif
