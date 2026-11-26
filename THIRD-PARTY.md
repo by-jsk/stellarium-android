@@ -11,14 +11,20 @@ It contains no signing keys. See https://github.com/by-jsk/stellarium-android
 and the matching source asset alongside the APK in
 https://github.com/by-jsk/app-downloads/releases .
 
-The following unmodified platform components have corresponding source and
-build instructions available from their original public distribution servers:
+The following platform components have corresponding source and build
+instructions available from their original public distribution servers:
 
 * Qt 6.10.2: Copyright The Qt Company Ltd. and contributors. Qt Charts uses GPLv3
   in this build. Other used Qt modules permit GPLv3 and/or LGPLv3. Full source:
   https://download.qt.io/archive/qt/6.10/6.10.2/single/ . The source includes each
   module's LICENSES directory and third-party attribution files. Build recipes:
   https://github.com/qt/qt5/tree/v6.10.2/coin/provisioning .
+  The Android Text to Speech Java wrapper is based on Qt's v6.10.2 source under
+  LGPL-3.0-only or GPL-3.0-only. The modified wrapper is included in the
+  corresponding source at `android/src/org/qtproject/qt/android/speech/QtTextToSpeech.java`
+  with its original notice and a dated modification notice. The build compiles
+  it in place of `QtAndroidTextToSpeech.jar`. The native speech plugin comes
+  from the unmodified Qt SDK.
 * FFmpeg n7.1.2: Copyright the FFmpeg developers and individual contributors.
   Qt's prebuilt multimedia backend is LGPL-2.1-or-later and includes additional
   permissive notices. Corresponding source, including all notices:
